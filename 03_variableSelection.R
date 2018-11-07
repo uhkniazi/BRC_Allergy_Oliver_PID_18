@@ -27,7 +27,7 @@ dbDisconnect(db)
 dim(df)
 df = na.omit(df)
 df$Patient = factor(gsub(' ', '', as.character(df$Patient)))
-df$Allergic.Status = factor(gsub(' ', '', as.character(df$Allergic.Status)))
+df$Allergic.Status = factor(gsub(' ', '', as.character(df$Allergic.Status)), levels = c('PS', 'PA'))
 df = droplevels.data.frame(df)
 ## make count matrix
 mData = as.matrix(df[,-c(1:2)])
@@ -69,7 +69,7 @@ dfData = data.frame(lData.train$data)
 dim(dfData)
 dfData$fGroups = fGroups
 
-lData = list(resp=ifelse(dfData$fGroups == 'PS', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
+lData = list(resp=ifelse(dfData$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
 
 library(rstan)
 rstan_options(auto_write = TRUE)
@@ -85,7 +85,7 @@ initf = function(chain_id = 1) {
 }
 
 
-fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=4, pars=c('tau', 'betas2'), init=initf, 
+fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=4, pars=c('tau', 'betas2'), init=initf, cores=4,
                     control=list(adapt_delta=0.99, max_treedepth = 13))
 
 save(fit.stan, file='temp/fit.stan.binom.rds')
@@ -100,6 +100,7 @@ dim(mCoef)
 # ## get the intercept at population level
 iIntercept = mCoef[,1]
 mCoef = mCoef[,-1]
+colnames(mCoef) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
 
 ## function to calculate statistics for a coefficient
 getDifference = function(ivData){
@@ -120,17 +121,34 @@ names(m) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
 text(colMeans(mCoef), ivPval, names(m), pos=1)
 m = abs(m)
 m = sort(m, decreasing = T)
-cvTopGenes.binomial = names(m)[1:8]
+cvTopGenes.binomial = names(m)[1:20]
 
 p.old = par(mar=c(6,3,4,2)+0.1)
 l2 = barplot(m[1:20], 
              las=2, xaxt='n', col='grey', main='Top Variables')
 axis(1, at = l2, labels = names(m)[1:20], tick = F, las=2, cex.axis=0.7 )
 
+## format for line plots
+m = colMeans(mCoef)
+names(m) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
+m = sort(m, decreasing = T)
+mTreatment = mCoef[,names(m)]
+
+df = apply(mTreatment, 2, getms)
+x = 1:ncol(mTreatment)
+
+par(p.old)
+plot(x, df['m',], ylim=c(min(df), max(df)), pch=20, xlab='', main='Effect on Log Odds of PA',
+     ylab='Slopes', xaxt='n')
+axis(1, at = x, labels = colnames(mTreatment), las=2, cex.axis=0.7)
+for(l in 1:ncol(df)){
+  lines(x=c(x[l], x[l]), y=df[c(2,3),l], lwd=0.5)
+}
+
 #################### test performance of both results, from Random Forest and Binomial Regression
 dfRF = CVariableSelection.RandomForest.getVariables(oVar.r)
 # select the top 30 variables
-cvTopGenes = rownames(dfRF)[1:8]
+cvTopGenes = rownames(dfRF)[1:20]
 
 # use the top genes to find top combinations of genes
 dfData = data.frame(lData.train$data[, cvTopGenes])
@@ -242,7 +260,7 @@ dim(dfData)
 head(dfData)
 dfData = data.frame(dfData, fGroups=fGroups)
 
-lData = list(resp=ifelse(dfData$fGroups == 'PS', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
+lData = list(resp=ifelse(dfData$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
 start = c(rep(0, times=ncol(lData$mModMatrix)))
 mylogpost(start, lData)
 
@@ -252,7 +270,7 @@ fit.2
 fit.1 = glm(fGroups ~ ., data=dfData, family='binomial')
 data.frame(coef(fit.1), fit.2$mode)
 
-stanDso = rstan::stan_model(file='binomialRegressionSharedCoeffVariance.stan')
+#stanDso = rstan::stan_model(file='binomialRegressionSharedCoeffVariance.stan')
 
 lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData$mModMatrix,
                  y=lData$resp)
@@ -263,17 +281,17 @@ initf = function(chain_id = 1) {
 }
 
 
-fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=4, pars=c('tau', 'betas2'), init=initf, 
+fit.stan.2 = sampling(stanDso, data=lStanData, iter=1000, chains=4, pars=c('tau', 'betas2'), init=initf, cores=4,
                     control=list(adapt_delta=0.99, max_treedepth = 13))
 
-print(fit.stan, c('betas2', 'tau'))
-print(fit.stan, 'tau')
-traceplot(fit.stan, 'tau')
-traceplot(fit.stan, 'betas2')
+print(fit.stan.2, c('betas2', 'tau'))
+print(fit.stan.2, 'tau')
+traceplot(fit.stan.2, 'tau')
+traceplot(fit.stan.2, 'betas2')
 ## get the coefficient of interest - Modules in our case from the random coefficients section
 mCoef = extract(fit.stan)$betas2
 dim(mCoef)
-colnames(mCoef) = c('Intercept', cvTopGenes.comb)
+colnames(mCoef) = c('Intercept', colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)])
 pairs(mCoef, pch=20)
 
 

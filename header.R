@@ -58,3 +58,14 @@ plotMeanFC = function(m, dat, p.cut, title){
   #mh = cut(m, breaks=quantile(m, 0:50/50), include.lowest = T)
   plot(m, dat$logFC, col=col, pch=20, main=title, xlab='log Mean', ylab='logFC', ylim=c(-2, 2), cex=0.6)
 }
+
+## utility function for plotting
+getms = function(f){
+  m = mean(f)
+  se = sd(f)
+  m.up = m+1.96*se
+  m.down = m-1.96*se
+  ret= c(m, m.up, m.down)
+  names(ret) = c('m', 'm.up', 'm.down')
+  return(ret)
+}
