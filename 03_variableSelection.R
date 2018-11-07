@@ -34,9 +34,9 @@ mData = as.matrix(df[,-c(1:2)])
 dfSample = df[,1:2]
 rownames(mData) = as.character(dfSample$Patient)
 str(dfSample)
-## remove NAs and 0s by adding a jitter
-table(mData == 0)
-mData[mData == 0] = round(runif(8436, 1e-3, 0.02), 3)
+# ## remove NAs and 0s by adding a jitter
+# table(mData == 0)
+# mData[mData == 0] = round(runif(8436, 1e-3, 0.02), 3)
 dim(na.omit(mData))
 dim(mData)
 
@@ -121,7 +121,6 @@ names(m) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
 text(colMeans(mCoef), ivPval, names(m), pos=1)
 m = abs(m)
 m = sort(m, decreasing = T)
-cvTopGenes.binomial = names(m)[1:20]
 
 p.old = par(mar=c(6,3,4,2)+0.1)
 l2 = barplot(m[1:20], 
@@ -145,72 +144,72 @@ for(l in 1:ncol(df)){
   lines(x=c(x[l], x[l]), y=df[c(2,3),l], lwd=0.5)
 }
 
-#################### test performance of both results, from Random Forest and Binomial Regression
-dfRF = CVariableSelection.RandomForest.getVariables(oVar.r)
-# select the top 30 variables
-cvTopGenes = rownames(dfRF)[1:20]
-
-# use the top genes to find top combinations of genes
-dfData = data.frame(lData.train$data[, cvTopGenes])
-
-oVar.sub = CVariableSelection.ReduceModel(dfData, fGroups, boot.num = 100)
-
-# plot the number of variables vs average error rate
-plot.var.selection(oVar.sub)
-
-# use the top binomial genes
-dfData = data.frame(lData.train$data[, cvTopGenes.binomial])
-
-oVar.sub2 = CVariableSelection.ReduceModel(dfData, fGroups, boot.num = 100)
-
-# plot the number of variables vs average error rate
-plot.var.selection(oVar.sub2)
-
-# print variable combinations
-for (i in 1:7){
-  cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub, i)
-  cat('Variable Count', i, paste(cvTopGenes.sub), '\n')
-  #print(cvTopGenes.sub)
-}
-
-for (i in 1:7){
-  cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub2, i)
-  cat('Variable Count', i, paste(cvTopGenes.sub), '\n')
-  #print(cvTopGenes.sub)
-}
-
-### try a combination of top genes from both models
-cvTopGenes.comb = NULL;
-for (i in 1:8){
-  cvTopGenes.comb = append(cvTopGenes.comb, CVariableSelection.ReduceModel.getMinModel(oVar.sub, i)) 
-  cat(i)
-}
-cvTopGenes.comb = unique(cvTopGenes.comb)
-
-for (i in 1:8){
-  cvTopGenes.comb = append(cvTopGenes.comb, CVariableSelection.ReduceModel.getMinModel(oVar.sub2, i))
-  cat(i)
-}
-
-cvTopGenes.comb = unique(cvTopGenes.comb)
-length(cvTopGenes.comb)
-
-# use these combined variables to find top combinations of genes
-dfData = data.frame(lData.train$data[,cvTopGenes.comb])
-
-oVar.subComb = CVariableSelection.ReduceModel(dfData, fGroups, boot.num = 100)
-
-# plot the number of variables vs average error rate
-plot.var.selection(oVar.subComb)
-
-for (i in 1:10){
-  cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.subComb, i)
-  cat('Variable Count', i, paste(cvTopGenes.sub), '\n')
-  #print(cvTopGenes.sub)
-}
-
-lModelReduction = list(rf=oVar.sub, bin=oVar.sub2, combined=oVar.subComb)
-save(lModelReduction, file='temp/lModelReduction.rds')
+# #################### test performance of both results, from Random Forest and Binomial Regression
+# dfRF = CVariableSelection.RandomForest.getVariables(oVar.r)
+# # select the top 30 variables
+# cvTopGenes = rownames(dfRF)[1:20]
+# 
+# # use the top genes to find top combinations of genes
+# dfData = data.frame(lData.train$data[, cvTopGenes])
+# 
+# oVar.sub = CVariableSelection.ReduceModel(dfData, fGroups, boot.num = 100)
+# 
+# # plot the number of variables vs average error rate
+# plot.var.selection(oVar.sub)
+# 
+# # use the top binomial genes
+# dfData = data.frame(lData.train$data[, cvTopGenes.binomial])
+# 
+# oVar.sub2 = CVariableSelection.ReduceModel(dfData, fGroups, boot.num = 100)
+# 
+# # plot the number of variables vs average error rate
+# plot.var.selection(oVar.sub2)
+# 
+# # print variable combinations
+# for (i in 1:7){
+#   cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub, i)
+#   cat('Variable Count', i, paste(cvTopGenes.sub), '\n')
+#   #print(cvTopGenes.sub)
+# }
+# 
+# for (i in 1:7){
+#   cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub2, i)
+#   cat('Variable Count', i, paste(cvTopGenes.sub), '\n')
+#   #print(cvTopGenes.sub)
+# }
+# 
+# ### try a combination of top genes from both models
+# cvTopGenes.comb = NULL;
+# for (i in 1:8){
+#   cvTopGenes.comb = append(cvTopGenes.comb, CVariableSelection.ReduceModel.getMinModel(oVar.sub, i)) 
+#   cat(i)
+# }
+# cvTopGenes.comb = unique(cvTopGenes.comb)
+# 
+# for (i in 1:8){
+#   cvTopGenes.comb = append(cvTopGenes.comb, CVariableSelection.ReduceModel.getMinModel(oVar.sub2, i))
+#   cat(i)
+# }
+# 
+# cvTopGenes.comb = unique(cvTopGenes.comb)
+# length(cvTopGenes.comb)
+# 
+# # use these combined variables to find top combinations of genes
+# dfData = data.frame(lData.train$data[,cvTopGenes.comb])
+# 
+# oVar.subComb = CVariableSelection.ReduceModel(dfData, fGroups, boot.num = 100)
+# 
+# # plot the number of variables vs average error rate
+# plot.var.selection(oVar.subComb)
+# 
+# for (i in 1:10){
+#   cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.subComb, i)
+#   cat('Variable Count', i, paste(cvTopGenes.sub), '\n')
+#   #print(cvTopGenes.sub)
+# }
+# 
+# lModelReduction = list(rf=oVar.sub, bin=oVar.sub2, combined=oVar.subComb)
+# save(lModelReduction, file='temp/lModelReduction.rds')
 
 ################################################# binomial regression with mixture model section
 ################ fit a binomial model on the chosen model size based on previous results
@@ -218,12 +217,12 @@ save(lModelReduction, file='temp/lModelReduction.rds')
 ## and using this make some calibration curves to select decision boundary
 
 #cvTopGenes.comb = CVariableSelection.ReduceModel.getMinModel(lModelReduction$rf, 2)
-cvTopGenes.comb = rownames(CVariableSelection.RandomForest.getVariables(oVar.r))[1:2]
+#cvTopGenes.comb = rownames(CVariableSelection.RandomForest.getVariables(oVar.r))[1:2]
 
 library(LearnBayes)
-logit.inv = function(p) {exp(p)/(exp(p)+1) }
-dfData = data.frame(lData.train$data[, cvTopGenes.comb])
-colnames(dfData) = cvTopGenes.comb
+#logit.inv = function(p) {exp(p)/(exp(p)+1) }
+# dfData = data.frame(lData.train$data[, cvTopGenes.comb])
+# colnames(dfData) = cvTopGenes.comb
 ## binomial prediction
 mypred = function(theta, data){
   betas = theta # vector of betas i.e. regression coefficients for population
@@ -232,67 +231,67 @@ mypred = function(theta, data){
   # calculate fitted value
   iFitted = mModMatrix %*% betas
   # using logit link so use inverse logit
-  iFitted = logit.inv(iFitted)
+  iFitted = plogis(iFitted)
   return(iFitted)
 }
 
-## write the log posterior function
-mylogpost = function(theta, data){
-  ## parameters to track/estimate
-  betas = theta # vector of betas i.e. regression coefficients for population
-  ## data
-  resp = data$resp # resp
-  mModMatrix = data$mModMatrix
-  
-  # calculate fitted value
-  iFitted = mModMatrix %*% betas
-  # using logit link so use inverse logit
-  iFitted = logit.inv(iFitted)
-  # write the priors and likelihood
-  lp = dnorm(betas[1], 0, 10, log=T) + sum(dnorm(betas[-1], 0, 10, log=T))
-  lik = sum(dbinom(resp, 1, iFitted, log=T))
-  val = lik + lp
-  return(val)
-}
-
-# dfData = data.frame(dfData[ , cvTopGenes.comb])
-dim(dfData)
-head(dfData)
-dfData = data.frame(dfData, fGroups=fGroups)
+# ## write the log posterior function
+# mylogpost = function(theta, data){
+#   ## parameters to track/estimate
+#   betas = theta # vector of betas i.e. regression coefficients for population
+#   ## data
+#   resp = data$resp # resp
+#   mModMatrix = data$mModMatrix
+#   
+#   # calculate fitted value
+#   iFitted = mModMatrix %*% betas
+#   # using logit link so use inverse logit
+#   iFitted = logit.inv(iFitted)
+#   # write the priors and likelihood
+#   lp = dnorm(betas[1], 0, 10, log=T) + sum(dnorm(betas[-1], 0, 10, log=T))
+#   lik = sum(dbinom(resp, 1, iFitted, log=T))
+#   val = lik + lp
+#   return(val)
+# }
+# 
+# # dfData = data.frame(dfData[ , cvTopGenes.comb])
+# dim(dfData)
+# head(dfData)
+# dfData = data.frame(dfData, fGroups=fGroups)
 
 lData = list(resp=ifelse(dfData$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
-start = c(rep(0, times=ncol(lData$mModMatrix)))
-mylogpost(start, lData)
-
-fit.2 = laplace(mylogpost, start, lData)
-fit.2
-
-fit.1 = glm(fGroups ~ ., data=dfData, family='binomial')
-data.frame(coef(fit.1), fit.2$mode)
+# start = c(rep(0, times=ncol(lData$mModMatrix)))
+# mylogpost(start, lData)
+# 
+# fit.2 = laplace(mylogpost, start, lData)
+# fit.2
+# 
+# fit.1 = glm(fGroups ~ ., data=dfData, family='binomial')
+# data.frame(coef(fit.1), fit.2$mode)
 
 #stanDso = rstan::stan_model(file='binomialRegressionSharedCoeffVariance.stan')
 
-lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData$mModMatrix,
-                 y=lData$resp)
-
-## give initial values
-initf = function(chain_id = 1) {
-  list(betas=rep(0, times=ncol(lStanData$X)), tau=0.5)
-}
-
-
-fit.stan.2 = sampling(stanDso, data=lStanData, iter=1000, chains=4, pars=c('tau', 'betas2'), init=initf, cores=4,
-                    control=list(adapt_delta=0.99, max_treedepth = 13))
-
-print(fit.stan.2, c('betas2', 'tau'))
-print(fit.stan.2, 'tau')
-traceplot(fit.stan.2, 'tau')
-traceplot(fit.stan.2, 'betas2')
-## get the coefficient of interest - Modules in our case from the random coefficients section
+# lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData$mModMatrix,
+#                  y=lData$resp)
+# 
+# ## give initial values
+# initf = function(chain_id = 1) {
+#   list(betas=rep(0, times=ncol(lStanData$X)), tau=0.5)
+# }
+# 
+# 
+# fit.stan.2 = sampling(stanDso, data=lStanData, iter=1000, chains=4, pars=c('tau', 'betas2'), init=initf, cores=4,
+#                     control=list(adapt_delta=0.99, max_treedepth = 13))
+# 
+# print(fit.stan.2, c('betas2', 'tau'))
+# print(fit.stan.2, 'tau')
+# traceplot(fit.stan.2, 'tau')
+# traceplot(fit.stan.2, 'betas2')
+# ## get the coefficient of interest - Modules in our case from the random coefficients section
 mCoef = extract(fit.stan)$betas2
 dim(mCoef)
 colnames(mCoef) = c('Intercept', colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)])
-pairs(mCoef, pch=20)
+# pairs(mCoef, pch=20)
 
 
 ### once we have results from the classifier we can make some plots to see
@@ -301,14 +300,14 @@ library(lattice)
 library(car)
 ## get the predicted values
 dfData.new = dfData
-str(dfData.new)
+#str(dfData.new)
 ## create model matrix
 X = as.matrix(cbind(rep(1, times=nrow(dfData.new)), dfData.new[,colnames(mCoef)[-1]]))
 colnames(X) = colnames(mCoef)
 head(X)
 ivPredict = mypred(colMeans(mCoef), list(mModMatrix=X))[,1]
-xyplot(ivPredict ~ fGroups, xlab='Actual Group', ylab='Predicted Probability of Being PS (1)')
-xyplot(ivPredict ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PS (1)',
+xyplot(ivPredict ~ fGroups, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)')
+xyplot(ivPredict ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)',
        main='Predicted scores vs Actual groups')
 densityplot(~ ivPredict, data=dfData, type='n')
 densityplot(~ ivPredict | fGroups, data=dfData, type='n', xlab='Predicted Score', main='Actual Scale')
@@ -321,5 +320,140 @@ xyplot(logit(ivPredict) ~ lData.train$covariates$Allergic.Status, xlab='Actual G
 densityplot(~ logit(ivPredict), groups=fGroups, data=dfData, type='n', 
             xlab='Predicted Score', main='Logit Scale', auto.key = list(columns=2))
 
+
+############# ROC curve 
+## draw a ROC curve first for calibration performance test
+ivTruth = fGroups == 'PA'
+p = prediction(ivPredict, ivTruth)
+perf.alive = performance(p, 'tpr', 'fpr')
+dfPerf.alive = data.frame(c=perf.alive@alpha.values, t=perf.alive@y.values[[1]], f=perf.alive@x.values[[1]], 
+                          r=perf.alive@y.values[[1]]/perf.alive@x.values[[1]])
+colnames(dfPerf.alive) = c('c', 't', 'f', 'r')
+plot(perf.alive)
+
 # convert to logit scale for model fitting
 ivPredict = logit(ivPredict)
+################################ section for mixture model
+######## this mixture model will help us decide an appropriate cutoff for the decision rule
+######## see Gelman 2013 around P18 for an example of record linking score calibration
+fit.stan.bin = fit.stan
+
+stanDso = rstan::stan_model(file='normResponseFiniteMixture_2.stan')
+
+## take a subset of the data
+lStanData = list(Ntotal=length(ivPredict), y=ivPredict, iMixtures=2)
+
+## give initial values if you want, look at the density plot 
+initf = function(chain_id = 1) {
+  list(mu = c(-5, 5), sigma = c(1, 1), iMixWeights=c(0.5, 0.5))
+} 
+
+## give initial values function to stan
+# l = lapply(1, initf)
+fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=4, cores=4, init=initf)
+print(fit.stan, digi=3)
+traceplot(fit.stan)
+save(fit.stan, file='temp/fit.stan.mixture.rds')
+## check if labelling degeneracy has occured
+## see here: http://mc-stan.org/users/documentation/case-studies/identifying_mixture_models.html
+params1 = as.data.frame(extract(fit.stan, permuted=FALSE)[,1,])
+params2 = as.data.frame(extract(fit.stan, permuted=FALSE)[,2,])
+params3 = as.data.frame(extract(fit.stan, permuted=FALSE)[,3,])
+params4 = as.data.frame(extract(fit.stan, permuted=FALSE)[,4,])
+
+## check if the means from different chains overlap
+## Labeling Degeneracy by Enforcing an Ordering
+par(mfrow=c(2,2))
+plot(params1$`mu[1]`, params1$`mu[2]`, pch=20, col=2)
+plot(params2$`mu[1]`, params2$`mu[2]`, pch=20, col=3)
+plot(params3$`mu[1]`, params3$`mu[2]`, pch=20, col=4)
+plot(params4$`mu[1]`, params4$`mu[2]`, pch=20, col=5)
+
+par(mfrow=c(1,1))
+plot(params1$`mu[1]`, params1$`mu[2]`, pch=20, col=2)
+points(params2$`mu[1]`, params2$`mu[2]`, pch=20, col=3)
+points(params3$`mu[1]`, params3$`mu[2]`, pch=20, col=4)
+points(params4$`mu[1]`, params4$`mu[2]`, pch=20, col=5)
+
+
+# model checks
+############# extract the mcmc sample values from stan
+mStan = do.call(cbind, extract(fit.stan))
+mStan = mStan[,-(ncol(mStan))]
+colnames(mStan) = c('mu1', 'mu2', 'sigma1', 'sigma2', 'mix1', 'mix2')
+dim(mStan)
+## get a sample for this distribution
+########## simulate 200 test quantities
+mDraws = matrix(NA, nrow = length(ivPredict), ncol=200)
+
+for (i in 1:200){
+  p = sample(1:nrow(mStan), size = 1)
+  mix = mean(mStan[,'mix1'])
+  ## this will take a sample from a normal mixture distribution
+  sam = function() {
+    ind = rbinom(1, 1, prob = mix)
+    return(ind * rnorm(1, mStan[p, 'mu1'], mStan[p, 'sigma1']) + 
+             (1-ind) * rnorm(1, mStan[p, 'mu2'], mStan[p, 'sigma2']))
+  }
+  mDraws[,i] = replicate(length(ivPredict), sam())
+}
+
+mDraws.normMix = mDraws
+
+yresp = density(ivPredict)
+yresp$y = yresp$y/max(yresp$y)
+plot(yresp, xlab='', main='Fitted distribution', ylab='scaled density', lwd=2)
+temp = apply(mDraws, 2, function(x) {x = density(x)
+x$y = x$y/max(x$y)
+lines(x, col='darkgrey', lwd=0.6)
+})
+lines(yresp, lwd=2)
+
+
+print(fit.stan)
+
+range(ivPredict)
+## reconvert back to inverse logit scale i.e. 0 to 1 range
+ivPredict = plogis(ivPredict)
+
+## draw a ROC curve first for calibration performance test
+ivTruth = fGroups == 'PA'
+p = prediction(ivPredict, ivTruth)
+perf.alive = performance(p, 'tpr', 'fpr')
+dfPerf.alive = data.frame(c=perf.alive@alpha.values, t=perf.alive@y.values[[1]], f=perf.alive@x.values[[1]], 
+                          r=perf.alive@y.values[[1]]/perf.alive@x.values[[1]])
+colnames(dfPerf.alive) = c('c', 't', 'f', 'r')
+plot(perf.alive)
+
+## draw the simulation lines
+## these are p-values from the mixture components
+## create posterior smatter lines
+grid = seq(-4, 4, length.out = 100)
+f_getSmatterLines = function(m, s, g){
+  return(pnorm(g, m, s, lower.tail = F))
+}
+y = f_getSmatterLines(3.6, 0.1, grid)
+x = f_getSmatterLines(-2.25, 2.42, grid)
+lines(x, y, col=2)
+
+## holders for the simulated p-values
+mTP = matrix(NA, nrow = length(grid), ncol = 2000)
+mFP = matrix(NA, nrow = length(grid), ncol = 2000)
+
+for (i in 1:2000){
+  p = sample(1:nrow(mStan), size = 1)
+  x = pnorm(grid, mStan[p, 'mu1'], mStan[p, 'sigma1'], lower.tail = F) 
+  y = pnorm(grid, mStan[p, 'mu2'], mStan[p, 'sigma2'], lower.tail=F)
+  lines(x, y, col='darkgrey', lwd=0.5)
+  mFP[,i] = x
+  mTP[,i] = y
+}
+
+plot(perf.alive, add=T, col='blue')
+
+p = sample(1:nrow(mStan), size = 2000)
+x = pnorm(logit(0.6), mStan[p, 'mu1'], mStan[p, 'sigma1'], lower.tail = F)
+y = pnorm(3.6, mStan[p, 'mu2'], mStan[p, 'sigma2'], lower.tail=F)
+
+hist(x, main='False Positive Rate at 0.6')
+hist(y, main='True Positive Rate at 0.6')
