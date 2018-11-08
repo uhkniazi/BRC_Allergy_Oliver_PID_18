@@ -182,3 +182,33 @@ summary(fit.flex.2)
 lines(density(predict(fit.flex, aggregate=T)[[1]][,1]))
 lines(density(predict(fit.flex.2, aggregate=T)[[1]][,1]))
 
+### heatmap
+if (!require(NMF)) stop('R package NMF needs to be installed.')
+i = order(fBatch)
+mData = mData.bk[, i]
+fBatch = fBatch[i]
+
+## remove NAs and 0s by adding a jitter
+table(mData == 0)
+mData[mData == 0] = runif(8436, 1e-2, 1)
+dim(na.omit(mData))
+dim(mData)
+
+# standardize the variables
+s = apply(mData, 1, sd)
+## remove any variables with sd 0
+f = s <= 0
+s = s[!f]
+mData = mData[!f,]
+mData = t(scale(t(mData)))
+# cluster the samples
+hc = hclust(dist(t(mData)))
+# cluster the variables
+hcV = hclust(dist(mData))
+# sanity check
+# threshhold the values
+mData[mData < -3] = -3
+mData[mData > 3] = 3
+# draw the heatmap  color='-RdBu:50'
+aheatmap(mData, color=c('blue', 'black', 'red'), breaks=0, scale='none', Rowv = hcV, annColors=NA, Colv=hc)
+aheatmap(mData, color=c('blue', 'black', 'red'), breaks=0, scale='none', Rowv = hcV, annColors=NA, Colv=NA)
