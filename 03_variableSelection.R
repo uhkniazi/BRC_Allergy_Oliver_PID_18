@@ -34,9 +34,11 @@ mData = as.matrix(df[,-c(1:2)])
 dfSample = df[,1:2]
 rownames(mData) = as.character(dfSample$Patient)
 str(dfSample)
-# ## remove NAs and 0s by adding a jitter
-# table(mData == 0)
-# mData[mData == 0] = round(runif(8436, 1e-3, 0.02), 3)
+## remove NAs and 0s and convert other values to 1 by adding a jitter
+f = mData < 0.3
+table(f)
+mData[f] = 0
+mData[!f] = 1
 dim(na.omit(mData))
 dim(mData)
 
@@ -59,7 +61,7 @@ dfData = data.frame(lData.train$data)
 fGroups = lData.train$covariates$Allergic.Status
 
 oVar.r = CVariableSelection.RandomForest(dfData, fGroups, boot.num = 100)
-save(oVar.r, file='temp/oVar.r_reverse.rds')
+save(oVar.r, file='temp/oVar.r_binary.rds')
 
 plot.var.selection(oVar.r)
 
@@ -88,7 +90,7 @@ initf = function(chain_id = 1) {
 fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=4, pars=c('tau', 'betas2'), init=initf, cores=4,
                     control=list(adapt_delta=0.99, max_treedepth = 13))
 
-save(fit.stan, file='temp/fit.stan.binom.rds')
+save(fit.stan, file='temp/fit.stan.binom.binary.rds')
 
 print(fit.stan, c('betas2', 'tau'))
 print(fit.stan, 'tau')
@@ -143,7 +145,7 @@ axis(1, at = x, labels = colnames(mTreatment), las=2, cex.axis=0.7)
 for(l in 1:ncol(df)){
   lines(x=c(x[l], x[l]), y=df[c(2,3),l], lwd=0.5)
 }
-
+abline(h = 0, col='grey')
 # #################### test performance of both results, from Random Forest and Binomial Regression
 # dfRF = CVariableSelection.RandomForest.getVariables(oVar.r)
 # # select the top 30 variables
@@ -231,7 +233,7 @@ mypred = function(theta, data){
   # calculate fitted value
   iFitted = mModMatrix %*% betas
   # using logit link so use inverse logit
-  iFitted = plogis(iFitted)
+  #iFitted = plogis(iFitted)
   return(iFitted)
 }
 
@@ -305,7 +307,8 @@ dfData.new = dfData
 X = as.matrix(cbind(rep(1, times=nrow(dfData.new)), dfData.new[,colnames(mCoef)[-1]]))
 colnames(X) = colnames(mCoef)
 head(X)
-ivPredict = mypred(colMeans(mCoef), list(mModMatrix=X))[,1]
+ivPredict.raw = mypred(colMeans(mCoef), list(mModMatrix=X))[,1]
+ivPredict = plogis(ivPredict.raw)
 xyplot(ivPredict ~ fGroups, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)')
 xyplot(ivPredict ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)',
        main='Predicted scores vs Actual groups')
@@ -315,9 +318,9 @@ densityplot(~ ivPredict, groups=fGroups, data=dfData, type='n',
             xlab='Predicted Score', main='Actual Scale', auto.key = list(columns=2))
 
 ## lets check on a different scale of the score
-densityplot(~ logit(ivPredict), data=dfData)
-xyplot(logit(ivPredict) ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PS (1)')
-densityplot(~ logit(ivPredict), groups=fGroups, data=dfData, type='n', 
+densityplot(~ ivPredict.raw, data=dfData)
+xyplot(ivPredict.raw ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PS (1)')
+densityplot(~ ivPredict.raw, groups=fGroups, data=dfData, type='n', 
             xlab='Predicted Score', main='Logit Scale', auto.key = list(columns=2))
 
 
@@ -332,7 +335,7 @@ colnames(dfPerf.alive) = c('c', 't', 'f', 'r')
 plot(perf.alive)
 
 # convert to logit scale for model fitting
-ivPredict = logit(ivPredict)
+ivPredict = ivPredict.raw
 ################################ section for mixture model
 ######## this mixture model will help us decide an appropriate cutoff for the decision rule
 ######## see Gelman 2013 around P18 for an example of record linking score calibration
@@ -414,7 +417,7 @@ print(fit.stan)
 
 range(ivPredict)
 ## reconvert back to inverse logit scale i.e. 0 to 1 range
-ivPredict = plogis(ivPredict)
+ivPredict = plogis(ivPredict.raw)
 
 ## draw a ROC curve first for calibration performance test
 ivTruth = fGroups == 'PA'
@@ -428,12 +431,12 @@ plot(perf.alive)
 ## draw the simulation lines
 ## these are p-values from the mixture components
 ## create posterior smatter lines
-grid = seq(-4, 4, length.out = 100)
+grid = seq(-7, 7, length.out = 100)
 f_getSmatterLines = function(m, s, g){
   return(pnorm(g, m, s, lower.tail = F))
 }
-y = f_getSmatterLines(3.6, 0.1, grid)
-x = f_getSmatterLines(-2.25, 2.42, grid)
+y = f_getSmatterLines(4.67, 3, grid)
+x = f_getSmatterLines(-3.99, 1.98, grid)
 lines(x, y, col=2)
 
 ## holders for the simulated p-values
@@ -451,9 +454,16 @@ for (i in 1:2000){
 
 plot(perf.alive, add=T, col='blue')
 
-p = sample(1:nrow(mStan), size = 2000)
-x = pnorm(logit(0.6), mStan[p, 'mu1'], mStan[p, 'sigma1'], lower.tail = F)
-y = pnorm(3.6, mStan[p, 'mu2'], mStan[p, 'sigma2'], lower.tail=F)
+c = cbind(tp=rowMeans(mTP), fp=rowMeans(mFP))
+matplot(c, type = 'l', xaxt='n', xlab='Decision Boundary', ylab='Average Rate',
+        main='Simulated True Positive & False Positive Rates')
+legend('topright', c('TP', 'FP'), fill=c('black', 'red'))
+axis(1, 1:nrow(c), labels = round(plogis(grid), 3), cex.axis=0.4, las=2)
 
-hist(x, main='False Positive Rate at 0.6')
-hist(y, main='True Positive Rate at 0.6')
+## calculate average scores via simulation at desired cutoff
+p = sample(1:nrow(mStan), size = 2000)
+x = pnorm(logit(0.57), mStan[p, 'mu1'], mStan[p, 'sigma1'], lower.tail = F)
+y = pnorm(logit(0.57), mStan[p, 'mu2'], mStan[p, 'sigma2'], lower.tail=F)
+
+hist(x, main='False Positive Rate at 0.57')
+hist(y, main='True Positive Rate at 0.57')
