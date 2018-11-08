@@ -126,7 +126,7 @@ m = sort(m, decreasing = T)
 
 p.old = par(mar=c(6,3,4,2)+0.1)
 l2 = barplot(m[1:20], 
-             las=2, xaxt='n', col='grey', main='Top Variables')
+             las=2, xaxt='n', col='grey', main='Top Variables', ylab='Absolute Log Odds')
 axis(1, at = l2, labels = names(m)[1:20], tick = F, las=2, cex.axis=0.7 )
 
 ## format for line plots
@@ -332,7 +332,7 @@ perf.alive = performance(p, 'tpr', 'fpr')
 dfPerf.alive = data.frame(c=perf.alive@alpha.values, t=perf.alive@y.values[[1]], f=perf.alive@x.values[[1]], 
                           r=perf.alive@y.values[[1]]/perf.alive@x.values[[1]])
 colnames(dfPerf.alive) = c('c', 't', 'f', 'r')
-plot(perf.alive)
+plot(perf.alive, main='Classifier Performance to predict PA')
 
 # convert to logit scale for model fitting
 ivPredict = ivPredict.raw
@@ -426,7 +426,7 @@ perf.alive = performance(p, 'tpr', 'fpr')
 dfPerf.alive = data.frame(c=perf.alive@alpha.values, t=perf.alive@y.values[[1]], f=perf.alive@x.values[[1]], 
                           r=perf.alive@y.values[[1]]/perf.alive@x.values[[1]])
 colnames(dfPerf.alive) = c('c', 't', 'f', 'r')
-plot(perf.alive)
+plot(perf.alive, main='Classifier Performance to predict PA')
 
 ## draw the simulation lines
 ## these are p-values from the mixture components
@@ -437,7 +437,7 @@ f_getSmatterLines = function(m, s, g){
 }
 y = f_getSmatterLines(4.67, 3, grid)
 x = f_getSmatterLines(-3.99, 1.98, grid)
-lines(x, y, col=2)
+lines(x, y, col=2, lwd=2)
 
 ## holders for the simulated p-values
 mTP = matrix(NA, nrow = length(grid), ncol = 2000)
@@ -452,13 +452,13 @@ for (i in 1:2000){
   mTP[,i] = y
 }
 
-plot(perf.alive, add=T, col='blue')
+plot(perf.alive, add=T, col='blue', lwd=2)
 
 c = cbind(tp=rowMeans(mTP), fp=rowMeans(mFP))
 matplot(c, type = 'l', xaxt='n', xlab='Decision Boundary', ylab='Average Rate',
         main='Simulated True Positive & False Positive Rates')
 legend('topright', c('TP', 'FP'), fill=c('black', 'red'))
-axis(1, 1:nrow(c), labels = round(plogis(grid), 3), cex.axis=0.4, las=2)
+axis(1, 1:nrow(c), labels = round(plogis(grid), 3), cex.axis=0.6, las=2)
 
 ## calculate average scores via simulation at desired cutoff
 p = sample(1:nrow(mStan), size = 2000)
