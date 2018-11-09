@@ -36,8 +36,8 @@ mData = t(mData)
 mData.bk = mData
 str(dfSample)
 ## remove NAs and 0s by adding a jitter
-table(mData == 0)
-mData[mData == 0] = runif(8436, 1e-2, 1)
+table(mData < 0.3)
+mData[mData < 0.3] = runif(8619, 1e-3, 1e-1)
 dim(na.omit(mData))
 dim(mData)
 
@@ -58,7 +58,7 @@ ivProb = apply(mData, 1, function(inData) {
 hist(ivProb)
 
 table(ivProb < 0.1)
-mData = mData[ivProb > 0.1, ]
+# mData = mData[ivProb > 0.1, ]
 dim(mData)
 ## load CDiagnostics and test
 ## compare the normalised and raw data
@@ -184,31 +184,32 @@ lines(density(predict(fit.flex.2, aggregate=T)[[1]][,1]))
 
 ### heatmap
 if (!require(NMF)) stop('R package NMF needs to be installed.')
+fBatch = dfSample$Allergic.Status
 i = order(fBatch)
-mData = mData.bk[, i]
+mData = mData[, i]
 fBatch = fBatch[i]
 
-## remove NAs and 0s by adding a jitter
-table(mData == 0)
-mData[mData == 0] = runif(8436, 1e-2, 1)
-dim(na.omit(mData))
-dim(mData)
+## remove NAs and 0s and convert other values to 1 by adding a jitter
+f = mData < 0.3
+table(f)
+mData[f] = 0
+mData[!f] = 1
 
 # standardize the variables
 s = apply(mData, 1, sd)
 ## remove any variables with sd 0
 f = s <= 0
-s = s[!f]
-mData = mData[!f,]
-mData = t(scale(t(mData)))
+table(f)
+# s = s[!f]
+# mData = mData[!f,]
+# mData = t(scale(t(mData)))
 # cluster the samples
-hc = hclust(dist(t(mData)))
+hc = hclust(dist(t(mData), method='binary'))
 # cluster the variables
-hcV = hclust(dist(mData))
-# sanity check
-# threshhold the values
-mData[mData < -3] = -3
-mData[mData > 3] = 3
-# draw the heatmap  color='-RdBu:50'
-aheatmap(mData, color=c('blue', 'black', 'red'), breaks=0, scale='none', Rowv = hcV, annColors=NA, Colv=hc)
-aheatmap(mData, color=c('blue', 'black', 'red'), breaks=0, scale='none', Rowv = hcV, annColors=NA, Colv=NA)
+hcV = hclust(dist(mData, method = 'binary'))
+colnames(mData) = as.character(fBatch)
+# draw the heatmap  
+pdf('results/figures/heatmaps.pdf')
+aheatmap(mData, color=c('grey', 'black'), breaks=0.5, scale='none', Rowv = hcV, annColors=NA, Colv=hc)
+aheatmap(mData, color=c('grey', 'black'), breaks=0.5, scale='none', Rowv = hcV, annColors=NA, Colv=NA)
+dev.off(dev.cur())
