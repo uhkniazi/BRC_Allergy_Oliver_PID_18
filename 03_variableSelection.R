@@ -465,5 +465,9 @@ p = sample(1:nrow(mStan), size = 2000)
 x = pnorm(logit(0.57), mStan[p, 'mu1'], mStan[p, 'sigma1'], lower.tail = F)
 y = pnorm(logit(0.57), mStan[p, 'mu2'], mStan[p, 'sigma2'], lower.tail=F)
 
-hist(x, main='False Positive Rate at 0.57')
-hist(y, main='True Positive Rate at 0.57')
+hist(x, main='False Positive Rate at 0.57', xlab='')
+hist(y, main='True Positive Rate at 0.57', xlab='')
+
+fPredict = rep('PS', times=length(ivPredict))
+fPredict[ivPredict >= 0.57] = 'PA'
+table(fPredict, fGroups)
