@@ -179,12 +179,206 @@ jitter.binary = function(a, jitt=.05){
 
 allergic.jitt = jitter.binary(lData$resp)
 
-plot(dfData$pos, allergic.jitt, pch=20)
+plot(dfData$pos, allergic.jitt, pch=20, xlab='Positive Effect', ylab='Probability of PA class',
+     main='Prediction of PA class vs Abundance of Positive Allergens')
 x = seq(min(dfData$pos), max(dfData$pos), length.out = 100)
 m = cbind(1, x, mean(dfData$neg))
 c = colMeans(fit.1$sir)
-lines(x, plogis(m %*% c))
+lines(x, plogis(m %*% c), col='black')
 m = cbind(1, x, min(dfData$neg))
-lines(x, plogis(m %*% c))
+lines(x, plogis(m %*% c), col='red')
 m = cbind(1, x, max(dfData$neg))
-lines(x, plogis(m %*% c))
+lines(x, plogis(m %*% c), col='green')
+legend('bottomright', legend = c('Min Neg', 'Average Neg', 'Max Neg'), fill=c('red', 'black', 'green'))
+
+## about 22% class PS
+table(dfData$allergic[dfData$neg < 1])
+
+## second predictor fixed i.e. pos
+plot(dfData$neg, allergic.jitt, pch=20, xlab='Negative Effect', ylab='Probability of PA class',
+     main='Prediction of PA class vs Abundance of Negative Allergens')
+x = seq(min(dfData$neg), max(dfData$neg), length.out = 100)
+m = cbind(1, mean(dfData$pos), x)
+c = colMeans(fit.1$sir)
+lines(x, plogis(m %*% c), col='black')
+m = cbind(1, min(dfData$pos), x)
+lines(x, plogis(m %*% c), col='red')
+m = cbind(1, max(dfData$neg), x)
+lines(x, plogis(m %*% c), col='green')
+legend('right', legend = c('Min Pos', 'Average Pos', 'Max Pos'), fill=c('red', 'black', 'green'))
+
+### once we have results from the classifier we can make some plots to see
+### the performance
+library(lattice)
+library(car)
+## get the predicted values
+dfData.new = dfData
+str(dfData.new)
+## create model matrix
+X = as.matrix(cbind(rep(1, times=nrow(dfData.new)), dfData.new[,colnames(fit.1$sir)[-1]]))
+colnames(X) = colnames(fit.1$sir)
+head(X)
+ivPredict.raw = mypred(colMeans(fit.1$sir), list(mModMatrix=X))[,1]
+ivPredict = plogis(ivPredict.raw)
+xyplot(ivPredict ~ fGroups, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)')
+xyplot(ivPredict ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)',
+       main='Predicted scores vs Actual groups')
+densityplot(~ ivPredict, data=dfData, type='n')
+densityplot(~ ivPredict | fGroups, data=dfData, type='n', xlab='Predicted Score', main='Actual Scale')
+densityplot(~ ivPredict, groups=fGroups, data=dfData, type='n', 
+            xlab='Predicted Score', main='Actual Scale', auto.key = list(columns=2))
+
+## lets check on a different scale of the score
+densityplot(~ ivPredict.raw, data=dfData)
+xyplot(ivPredict.raw ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PS (1)')
+densityplot(~ ivPredict.raw, groups=fGroups, data=dfData, type='n', 
+            xlab='Predicted Score', main='Logit Scale', auto.key = list(columns=2))
+
+
+############# ROC curve 
+## draw a ROC curve first for calibration performance test
+library(ROCR)
+ivTruth = fGroups == 'PA'
+p = prediction(ivPredict, ivTruth)
+perf.alive = performance(p, 'tpr', 'fpr')
+dfPerf.alive = data.frame(c=perf.alive@alpha.values, t=perf.alive@y.values[[1]], f=perf.alive@x.values[[1]], 
+                          r=perf.alive@y.values[[1]]/perf.alive@x.values[[1]])
+colnames(dfPerf.alive) = c('c', 't', 'f', 'r')
+plot(perf.alive, main='Classifier Performance to predict PA')
+
+# convert to logit scale for model fitting
+ivPredict = ivPredict.raw
+
+################################ section for mixture model
+######## this mixture model will help us decide an appropriate cutoff for the decision rule
+######## see Gelman 2013 around P18 for an example of record linking score calibration
+stanDso = rstan::stan_model(file='normResponseFiniteMixture_2.stan')
+
+## take a subset of the data
+lStanData = list(Ntotal=length(ivPredict), y=ivPredict, iMixtures=2)
+
+## give initial values if you want, look at the density plot 
+initf = function(chain_id = 1) {
+  list(mu = c(-5, 7), sigma = c(1, 1), iMixWeights=c(0.5, 0.5))
+} 
+
+## give initial values function to stan
+# l = lapply(1, initf)
+fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=4, cores=4, init=initf)
+print(fit.stan, digi=3)
+traceplot(fit.stan)
+save(fit.stan, file='temp/fit.stan.mixture_diversity.rds')
+## check if labelling degeneracy has occured
+## see here: http://mc-stan.org/users/documentation/case-studies/identifying_mixture_models.html
+params1 = as.data.frame(extract(fit.stan, permuted=FALSE)[,1,])
+params2 = as.data.frame(extract(fit.stan, permuted=FALSE)[,2,])
+params3 = as.data.frame(extract(fit.stan, permuted=FALSE)[,3,])
+params4 = as.data.frame(extract(fit.stan, permuted=FALSE)[,4,])
+
+## check if the means from different chains overlap
+## Labeling Degeneracy by Enforcing an Ordering
+par(mfrow=c(2,2))
+plot(params1$`mu[1]`, params1$`mu[2]`, pch=20, col=2)
+plot(params2$`mu[1]`, params2$`mu[2]`, pch=20, col=3)
+plot(params3$`mu[1]`, params3$`mu[2]`, pch=20, col=4)
+plot(params4$`mu[1]`, params4$`mu[2]`, pch=20, col=5)
+
+par(mfrow=c(1,1))
+plot(params1$`mu[1]`, params1$`mu[2]`, pch=20, col=2)
+points(params2$`mu[1]`, params2$`mu[2]`, pch=20, col=3)
+points(params3$`mu[1]`, params3$`mu[2]`, pch=20, col=4)
+points(params4$`mu[1]`, params4$`mu[2]`, pch=20, col=5)
+
+
+# model checks
+############# extract the mcmc sample values from stan
+mStan = do.call(cbind, extract(fit.stan))
+mStan = mStan[,-(ncol(mStan))]
+colnames(mStan) = c('mu1', 'mu2', 'sigma1', 'sigma2', 'mix1', 'mix2')
+dim(mStan)
+## get a sample for this distribution
+########## simulate 200 test quantities
+mDraws = matrix(NA, nrow = length(ivPredict), ncol=200)
+
+for (i in 1:200){
+  p = sample(1:nrow(mStan), size = 1)
+  mix = mean(mStan[,'mix1'])
+  ## this will take a sample from a normal mixture distribution
+  sam = function() {
+    ind = rbinom(1, 1, prob = mix)
+    return(ind * rnorm(1, mStan[p, 'mu1'], mStan[p, 'sigma1']) + 
+             (1-ind) * rnorm(1, mStan[p, 'mu2'], mStan[p, 'sigma2']))
+  }
+  mDraws[,i] = replicate(length(ivPredict), sam())
+}
+
+mDraws.normMix = mDraws
+
+yresp = density(ivPredict)
+yresp$y = yresp$y/max(yresp$y)
+plot(yresp, xlab='', main='Fitted distribution', ylab='scaled density', lwd=2)
+temp = apply(mDraws, 2, function(x) {x = density(x)
+x$y = x$y/max(x$y)
+lines(x, col='darkgrey', lwd=0.6)
+})
+lines(yresp, lwd=2)
+
+
+print(fit.stan)
+
+range(ivPredict)
+## reconvert back to inverse logit scale i.e. 0 to 1 range
+ivPredict = plogis(ivPredict.raw)
+
+## draw a ROC curve first for calibration performance test
+ivTruth = fGroups == 'PA'
+p = prediction(ivPredict, ivTruth)
+perf.alive = performance(p, 'tpr', 'fpr')
+dfPerf.alive = data.frame(c=perf.alive@alpha.values, t=perf.alive@y.values[[1]], f=perf.alive@x.values[[1]], 
+                          r=perf.alive@y.values[[1]]/perf.alive@x.values[[1]])
+colnames(dfPerf.alive) = c('c', 't', 'f', 'r')
+plot(perf.alive, main='Classifier Performance to predict PA')
+
+## draw the simulation lines
+## these are p-values from the mixture components
+## create posterior smatter lines
+grid = seq(-16, 14, length.out = 100)
+f_getSmatterLines = function(m, s, g){
+  return(pnorm(g, m, s, lower.tail = F))
+}
+y = f_getSmatterLines(5.58, 3.98, grid)
+x = f_getSmatterLines(-4.43, 4.21, grid)
+lines(x, y, col=2, lwd=2)
+
+## holders for the simulated p-values
+mTP = matrix(NA, nrow = length(grid), ncol = 200)
+mFP = matrix(NA, nrow = length(grid), ncol = 200)
+
+for (i in 1:200){
+  p = sample(1:nrow(mStan), size = 1)
+  x = pnorm(grid, mStan[p, 'mu1'], mStan[p, 'sigma1'], lower.tail = F) 
+  y = pnorm(grid, mStan[p, 'mu2'], mStan[p, 'sigma2'], lower.tail=F)
+  lines(x, y, col='darkgrey', lwd=0.5)
+  mFP[,i] = x
+  mTP[,i] = y
+}
+
+plot(perf.alive, add=T, col='blue', lwd=2)
+
+c = cbind(tp=rowMeans(mTP), fp=rowMeans(mFP))
+matplot(c, type = 'l', xaxt='n', xlab='Decision Boundary', ylab='Average Rate',
+        main='Simulated True Positive & False Positive Rates')
+legend('topright', c('TP', 'FP'), fill=c('black', 'red'))
+axis(1, 1:nrow(c), labels = round(plogis(grid), 3), cex.axis=0.6, las=2)
+
+## calculate average scores via simulation at desired cutoff
+p = sample(1:nrow(mStan), size = 2000)
+x = pnorm(logit(0.5), mStan[p, 'mu1'], mStan[p, 'sigma1'], lower.tail = F)
+y = pnorm(logit(0.5), mStan[p, 'mu2'], mStan[p, 'sigma2'], lower.tail=F)
+
+hist(x, main='False Positive Rate at 0.5', xlab='')
+hist(y, main='True Positive Rate at 0.5', xlab='')
+
+fPredict = rep('PS', times=length(ivPredict))
+fPredict[ivPredict >= 0.5] = 'PA'
+table(fPredict, fGroups)
