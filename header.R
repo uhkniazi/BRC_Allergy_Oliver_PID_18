@@ -69,3 +69,23 @@ getms = function(f){
   names(ret) = c('m', 'm.up', 'm.down')
   return(ret)
 }
+
+
+## shannon diversity
+## code copied from
+## https://rdrr.io/github/microbiome/microbiome/src/R/diversities.R
+shannon <- function(x) {
+  
+  # Ignore zeroes
+  x <- x[x > 0]
+  
+  # Species richness (number of species)
+  S <- length(x)
+  
+  # Relative abundances
+  p <- x/sum(x)
+  
+  # Shannon index
+  (-sum(p * log(p)))
+  
+}

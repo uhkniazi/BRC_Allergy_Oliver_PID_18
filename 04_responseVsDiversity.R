@@ -5,7 +5,7 @@
 
 ############ data loading and cleaning
 source('header.R')
-
+library(lattice)
 ## load the data
 library(RMySQL)
 
@@ -44,6 +44,20 @@ dim(mData)
 
 lData.train = list(data=mData, covariates=dfSample)
 rm(df)
+
+dim(mData)
+# calculate diversity of allergens for each class
+iClass.ps = colSums(mData[dfSample$Allergic.Status == 'PS', ])
+iClass.pa = colSums(mData[dfSample$Allergic.Status == 'PA', ])
+
+i = order(iClass.pa, decreasing = F)
+m = cbind(pa=iClass.pa[i], ps=iClass.ps[i])
+head(m)
+df = stack(data.frame(m))
+head(df)
+df$names = factor(names(iClass.pa[i]), levels = names(iClass.pa[i]))
+barchart(names ~ values | ind, data=df, xlab='Abundance', main='Ranked (on PA) Allergen Diversity', 
+         scales=list(y=list(cex=0.6)))
 
 ## calculating diversity 
 ## diversity currently is defined as the number of allergens found in each sample
@@ -170,6 +184,19 @@ apply(s, 2, mean)
 apply(s, 2, sd)
 pairs(s, pch=20)
 fit.1$sir = s
+
+## plot of coefficients
+df = apply(s, 2, getms)
+x = 1:ncol(s)
+
+par(p.old)
+plot(x, df['m',], ylim=c(min(df), max(df)), pch=20, xlab='', main='Effect on Log Odds of PA',
+     ylab='Coefficients', xaxt='n')
+axis(1, at = x, labels = colnames(s), las=2, cex.axis=1)
+for(l in 1:ncol(df)){
+  lines(x=c(x[l], x[l]), y=df[c(2,3),l], lwd=0.5)
+}
+abline(h = 0, col='grey')
 
 ## create the plots for regression with each predictor (not input) fixed at its average
 ## see Data Analysis ... Regression & Multilevel M [Gelman] for jitter.binary function
@@ -382,3 +409,5 @@ hist(y, main='True Positive Rate at 0.5', xlab='')
 fPredict = rep('PS', times=length(ivPredict))
 fPredict[ivPredict >= 0.5] = 'PA'
 table(fPredict, fGroups)
+# TP = 46/(46+4)
+# FP = 3/(3+37)

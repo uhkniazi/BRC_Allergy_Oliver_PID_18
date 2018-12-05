@@ -146,85 +146,14 @@ for(l in 1:ncol(df)){
   lines(x=c(x[l], x[l]), y=df[c(2,3),l], lwd=0.5)
 }
 abline(h = 0, col='grey')
-# #################### test performance of both results, from Random Forest and Binomial Regression
-# dfRF = CVariableSelection.RandomForest.getVariables(oVar.r)
-# # select the top 30 variables
-# cvTopGenes = rownames(dfRF)[1:20]
-# 
-# # use the top genes to find top combinations of genes
-# dfData = data.frame(lData.train$data[, cvTopGenes])
-# 
-# oVar.sub = CVariableSelection.ReduceModel(dfData, fGroups, boot.num = 100)
-# 
-# # plot the number of variables vs average error rate
-# plot.var.selection(oVar.sub)
-# 
-# # use the top binomial genes
-# dfData = data.frame(lData.train$data[, cvTopGenes.binomial])
-# 
-# oVar.sub2 = CVariableSelection.ReduceModel(dfData, fGroups, boot.num = 100)
-# 
-# # plot the number of variables vs average error rate
-# plot.var.selection(oVar.sub2)
-# 
-# # print variable combinations
-# for (i in 1:7){
-#   cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub, i)
-#   cat('Variable Count', i, paste(cvTopGenes.sub), '\n')
-#   #print(cvTopGenes.sub)
-# }
-# 
-# for (i in 1:7){
-#   cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub2, i)
-#   cat('Variable Count', i, paste(cvTopGenes.sub), '\n')
-#   #print(cvTopGenes.sub)
-# }
-# 
-# ### try a combination of top genes from both models
-# cvTopGenes.comb = NULL;
-# for (i in 1:8){
-#   cvTopGenes.comb = append(cvTopGenes.comb, CVariableSelection.ReduceModel.getMinModel(oVar.sub, i)) 
-#   cat(i)
-# }
-# cvTopGenes.comb = unique(cvTopGenes.comb)
-# 
-# for (i in 1:8){
-#   cvTopGenes.comb = append(cvTopGenes.comb, CVariableSelection.ReduceModel.getMinModel(oVar.sub2, i))
-#   cat(i)
-# }
-# 
-# cvTopGenes.comb = unique(cvTopGenes.comb)
-# length(cvTopGenes.comb)
-# 
-# # use these combined variables to find top combinations of genes
-# dfData = data.frame(lData.train$data[,cvTopGenes.comb])
-# 
-# oVar.subComb = CVariableSelection.ReduceModel(dfData, fGroups, boot.num = 100)
-# 
-# # plot the number of variables vs average error rate
-# plot.var.selection(oVar.subComb)
-# 
-# for (i in 1:10){
-#   cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.subComb, i)
-#   cat('Variable Count', i, paste(cvTopGenes.sub), '\n')
-#   #print(cvTopGenes.sub)
-# }
-# 
-# lModelReduction = list(rf=oVar.sub, bin=oVar.sub2, combined=oVar.subComb)
-# save(lModelReduction, file='temp/lModelReduction.rds')
 
 ################################################# binomial regression with mixture model section
 ################ fit a binomial model on the chosen model size based on previous results
 ## this can be another classifier as well e.g. LDA. Using this model check how is the performance 
 ## and using this make some calibration curves to select decision boundary
 
-#cvTopGenes.comb = CVariableSelection.ReduceModel.getMinModel(lModelReduction$rf, 2)
-#cvTopGenes.comb = rownames(CVariableSelection.RandomForest.getVariables(oVar.r))[1:2]
 
 library(LearnBayes)
-#logit.inv = function(p) {exp(p)/(exp(p)+1) }
-# dfData = data.frame(lData.train$data[, cvTopGenes.comb])
-# colnames(dfData) = cvTopGenes.comb
 ## binomial prediction
 mypred = function(theta, data){
   betas = theta # vector of betas i.e. regression coefficients for population
@@ -237,58 +166,8 @@ mypred = function(theta, data){
   return(iFitted)
 }
 
-# ## write the log posterior function
-# mylogpost = function(theta, data){
-#   ## parameters to track/estimate
-#   betas = theta # vector of betas i.e. regression coefficients for population
-#   ## data
-#   resp = data$resp # resp
-#   mModMatrix = data$mModMatrix
-#   
-#   # calculate fitted value
-#   iFitted = mModMatrix %*% betas
-#   # using logit link so use inverse logit
-#   iFitted = logit.inv(iFitted)
-#   # write the priors and likelihood
-#   lp = dnorm(betas[1], 0, 10, log=T) + sum(dnorm(betas[-1], 0, 10, log=T))
-#   lik = sum(dbinom(resp, 1, iFitted, log=T))
-#   val = lik + lp
-#   return(val)
-# }
-# 
-# # dfData = data.frame(dfData[ , cvTopGenes.comb])
-# dim(dfData)
-# head(dfData)
-# dfData = data.frame(dfData, fGroups=fGroups)
 
 lData = list(resp=ifelse(dfData$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
-# start = c(rep(0, times=ncol(lData$mModMatrix)))
-# mylogpost(start, lData)
-# 
-# fit.2 = laplace(mylogpost, start, lData)
-# fit.2
-# 
-# fit.1 = glm(fGroups ~ ., data=dfData, family='binomial')
-# data.frame(coef(fit.1), fit.2$mode)
-
-#stanDso = rstan::stan_model(file='binomialRegressionSharedCoeffVariance.stan')
-
-# lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData$mModMatrix,
-#                  y=lData$resp)
-# 
-# ## give initial values
-# initf = function(chain_id = 1) {
-#   list(betas=rep(0, times=ncol(lStanData$X)), tau=0.5)
-# }
-# 
-# 
-# fit.stan.2 = sampling(stanDso, data=lStanData, iter=1000, chains=4, pars=c('tau', 'betas2'), init=initf, cores=4,
-#                     control=list(adapt_delta=0.99, max_treedepth = 13))
-# 
-# print(fit.stan.2, c('betas2', 'tau'))
-# print(fit.stan.2, 'tau')
-# traceplot(fit.stan.2, 'tau')
-# traceplot(fit.stan.2, 'betas2')
 # ## get the coefficient of interest - Modules in our case from the random coefficients section
 mCoef = extract(fit.stan)$betas2
 dim(mCoef)
@@ -302,7 +181,6 @@ library(lattice)
 library(car)
 ## get the predicted values
 dfData.new = dfData
-#str(dfData.new)
 ## create model matrix
 X = as.matrix(cbind(rep(1, times=nrow(dfData.new)), dfData.new[,colnames(mCoef)[-1]]))
 colnames(X) = colnames(mCoef)
