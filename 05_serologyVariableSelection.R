@@ -57,7 +57,7 @@ source('CCrossValidation.R')
 unlink('CCrossValidation.R')
 
 ########################## perform a random forest step
-dfData = data.frame(lData.train$data)
+dfData = data.frame(log(lData.train$data+1e-4))
 fGroups = lData.train$covariates$Allergic.Status
 
 set.seed(123)
@@ -67,10 +67,11 @@ save(oVar.r, file='temp/oVar.r_serology.rds')
 plot.var.selection(oVar.r)
 
 ######################## Stan section for binomial regression approach
-dfData = data.frame(lData.train$data)
+#dfData = data.frame(lData.train$data)
+dfData = data.frame(log(lData.train$data+1e-4))
 dim(dfData)
 dfData$fGroups = fGroups
-
+str(dfData)
 lData = list(resp=ifelse(dfData$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
 
 library(rstan)
@@ -150,7 +151,7 @@ abline(h = 0, col='grey')
 
 ### there appear to be a lot of correlations in the data
 ## find correlated variables
-mCor = cor(mData, use="na.or.complete")
+mCor = cor(log(mData+1e-4), use="na.or.complete")
 library(caret)
 ### find the columns that are correlated and should be removed
 n = findCorrelation((mCor), cutoff = 0.7, names=T)
@@ -193,6 +194,9 @@ for (i in 1:4){
 dfData = data.frame(lData.train$data[,CVariableSelection.ReduceModel.getMinModel(oVar.sub, 1)])
 colnames(dfData) = CVariableSelection.ReduceModel.getMinModel(oVar.sub, 1)
 fGroups = lData.train$covariates$Allergic.Status
+
+# log transform the predictors
+dfData$Ara_H_6sp_ac = log(dfData$Ara_H_6sp_ac + 1e-4)
 
 dfData$fGroups = fGroups
 str(dfData)
@@ -276,10 +280,10 @@ jitter.binary = function(a, jitt=.05){
 
 allergic.jitt = jitter.binary(lData$resp)
 
-plot(dfData$pos, allergic.jitt, pch=20, xlab='Positive Effect', ylab='Probability of PA class',
-     main='Prediction of PA class vs Abundance of Positive Allergens')
-x = seq(min(dfData$pos), max(dfData$pos), length.out = 100)
-m = cbind(1, x, mean(dfData$neg))
+plot(dfData$Ara_H_6sp_ac, allergic.jitt, pch=20, xlab='Covariate', ylab='Probability of PA class',
+     main='Prediction of PA class vs Covariate')
+x = seq(min(dfData$Ara_H_6sp_ac), max(dfData$Ara_H_6sp_ac), length.out = 100)
+m = cbind(1, x)
 c = colMeans(fit.1$sir)
 lines(x, plogis(m %*% c), col='black')
 m = cbind(1, x, min(dfData$neg))
