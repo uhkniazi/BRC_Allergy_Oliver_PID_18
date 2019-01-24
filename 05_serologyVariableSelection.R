@@ -190,19 +190,11 @@ for (i in 1:4){
   #print(cvTopGenes.sub)
 }
 
-################# use the top variable to model the data
-dfData = data.frame(lData.train$data[,CVariableSelection.ReduceModel.getMinModel(oVar.sub, 1)])
-colnames(dfData) = CVariableSelection.ReduceModel.getMinModel(oVar.sub, 1)
-fGroups = lData.train$covariates$Allergic.Status
-
-# log transform the predictors
-dfData$Ara_H_6sp_ac = log(dfData$Ara_H_6sp_ac + 1e-4)
-
-dfData$fGroups = fGroups
-str(dfData)
-
-fit.0 = glm(fGroups ~ ., data=dfData, family='binomial')
-summary(fit.0)
+################# use the one variable at a time to model the data
+#### write the functions to fit models
+# 
+# fit.0 = glm(fGroups ~ ., data=dfData, family='binomial')
+# summary(fit.0)
 
 library(LearnBayes)
 ## lets write a custom glm using a bayesian approach
@@ -237,40 +229,50 @@ mypred = function(theta, data){
   return(iFitted)
 }
 
-lData = list(resp=ifelse(dfData$fGroups == 'PS', 0, 1), 
-             mModMatrix=model.matrix(fGroups ~ ., data=dfData))
-start = c(rep(0, times=ncol(lData$mModMatrix)))
+## set the variables
+dfData.all = data.frame(log(lData.train$data+1e-4))
+dim(dfData.all)
 
-mylogpost(start, lData)
+lFits = lapply(colnames(dfData.all), function(cPredictor) {
+  dfData  = data.frame(dfData.all[,cPredictor], fGroups)
+  colnames(dfData)[1] = cPredictor
+  
+  lData = list(resp=ifelse(dfData$fGroups == 'PS', 0, 1), 
+               mModMatrix=model.matrix(fGroups ~ ., data=dfData))
+  start = c(rep(0, times=ncol(lData$mModMatrix)))
+  
+  fit.1 = laplace(mylogpost, start, lData)
+  ### lets take a sample from this 
+  ## parameters for the multivariate t density
+  tpar = list(m=fit.1$mode, var=fit.1$var*2, df=4)
+  ## get a sample directly and using sir (sampling importance resampling with a t proposal density)
+  s = sir(mylogpost, tpar, 5000, lData)
+  colnames(s) = colnames(lData$mModMatrix)
+  apply(s, 2, mean)
+  apply(s, 2, sd)
+  pairs(s, pch=20)
+  fit.1$sir = s
+  return(fit.1)
+})
 
-fit.1 = laplace(mylogpost, start, lData)
-fit.1
-data.frame(coef(fit.0), fit.1$mode)
-se = sqrt(diag(fit.1$var))
+names(lFits) = colnames(dfData.all)
 
-### lets take a sample from this 
-## parameters for the multivariate t density
-tpar = list(m=fit.1$mode, var=fit.1$var*2, df=4)
-## get a sample directly and using sir (sampling importance resampling with a t proposal density)
-s = sir(mylogpost, tpar, 5000, lData)
-colnames(s) = colnames(lData$mModMatrix)
-apply(s, 2, mean)
-apply(s, 2, sd)
-pairs(s, pch=20)
-fit.1$sir = s
 
 ## plot of coefficients
-df = apply(s, 2, getms)
-x = 1:ncol(s)
-
-par(p.old)
-plot(x, df['m',], ylim=c(min(df), max(df)), pch=20, xlab='', main='Effect on Log Odds of PA',
-     ylab='Coefficients', xaxt='n')
-axis(1, at = x, labels = colnames(s), las=2, cex.axis=1)
-for(l in 1:ncol(df)){
-  lines(x=c(x[l], x[l]), y=df[c(2,3),l], lwd=0.5)
-}
-abline(h = 0, col='grey')
+temp = lapply(lFits, function(fit.1){
+  s = fit.1$sir
+  df = apply(s, 2, getms)
+  x = 1:ncol(s)
+  
+  #par(p.old)
+  plot(x, df['m',], ylim=c(min(df), max(df)), pch=20, xlab='', main='Effect on Log Odds of PA',
+       ylab='Coefficients', xaxt='n')
+  axis(1, at = x, labels = colnames(s), las=2, cex.axis=0.7)
+  for(l in 1:ncol(df)){
+    lines(x=c(x[l], x[l]), y=df[c(2,3),l], lwd=0.5)
+  }
+  abline(h = 0, col='grey')
+})
 
 ## create the plots for regression with each predictor (not input) fixed at its average
 ## see Data Analysis ... Regression & Multilevel M [Gelman] for jitter.binary function
@@ -278,32 +280,43 @@ jitter.binary = function(a, jitt=.05){
   ifelse (a==0, runif (length(a), 0, jitt), runif (length(a), 1-jitt, 1))
 }
 
-allergic.jitt = jitter.binary(lData$resp)
+temp = lapply(names(lFits), function(cPredictor){
+  allergic.jitt = jitter.binary(ifelse(lData.train$covariates$Allergic.Status == 'PS', 0, 1))
+  
+  plot(dfData.all[,cPredictor], allergic.jitt, pch=20, xlab='Covariate', ylab='Probability of PA class',
+       main=paste0('Prediction of PA class vs ', cPredictor))
+  x = seq(min(dfData.all[,cPredictor]), max(dfData.all[,cPredictor]), length.out = 100)
+  m = cbind(1, x)
+  c = colMeans(lFits[[cPredictor]]$sir)
+  lines(x, plogis(m %*% c), col='black')
+})
 
-plot(dfData$Ara_H_6sp_ac, allergic.jitt, pch=20, xlab='Covariate', ylab='Probability of PA class',
-     main='Prediction of PA class vs Covariate')
-x = seq(min(dfData$Ara_H_6sp_ac), max(dfData$Ara_H_6sp_ac), length.out = 100)
-m = cbind(1, x)
-c = colMeans(fit.1$sir)
-lines(x, plogis(m %*% c), col='black')
-m = cbind(1, x, min(dfData$neg))
-lines(x, plogis(m %*% c), col='red')
-m = cbind(1, x, max(dfData$neg))
-lines(x, plogis(m %*% c), col='green')
-legend('bottomright', legend = c('Min Neg', 'Average Neg', 'Max Neg'), fill=c('red', 'black', 'green'))
+### once we have results from the classifier we can make some plots to see
+### the performance
+library(lattice)
+library(car)
+library(ROCR)
 
-## about 22% class PS
-table(dfData$allergic[dfData$neg < 1])
+lPredicted = lapply(names(lFits), function(cPredictor){
+  ## create model matrix
+  X = as.matrix(cbind(rep(1, times=nrow(dfData.all)), dfData.all[,cPredictor]))
+  colnames(X) = colnames(lFits[[cPredictor]]$sir)
+  ivPredict.raw = mypred(colMeans(lFits[[cPredictor]]$sir), list(mModMatrix=X))[,1]
+  ivPredict = plogis(ivPredict.raw)
+  xyplot(ivPredict ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)',
+         main=paste0('Predicted scores vs Actual groups', cPredictor))
+  
+  ############# ROC curve 
+  ## draw a ROC curve first for calibration performance test
+  ivTruth = (lData.train$covariates$Allergic.Status == 'PA')
+  p = prediction(ivPredict, ivTruth)
+  perf.alive = performance(p, 'tpr', 'fpr')
+  dfPerf.alive = data.frame(c=perf.alive@alpha.values, t=perf.alive@y.values[[1]], f=perf.alive@x.values[[1]], 
+                            r=perf.alive@y.values[[1]]/perf.alive@x.values[[1]])
+  colnames(dfPerf.alive) = c('c', 't', 'f', 'r')
+  plot(perf.alive, main=paste0('Classifier Performance to predict PA ', cPredictor))
+  return(ivPredict.raw)
+})
 
-## second predictor fixed i.e. pos
-plot(dfData$neg, allergic.jitt, pch=20, xlab='Negative Effect', ylab='Probability of PA class',
-     main='Prediction of PA class vs Abundance of Negative Allergens')
-x = seq(min(dfData$neg), max(dfData$neg), length.out = 100)
-m = cbind(1, mean(dfData$pos), x)
-c = colMeans(fit.1$sir)
-lines(x, plogis(m %*% c), col='black')
-m = cbind(1, min(dfData$pos), x)
-lines(x, plogis(m %*% c), col='red')
-m = cbind(1, max(dfData$neg), x)
-lines(x, plogis(m %*% c), col='green')
-legend('right', legend = c('Min Pos', 'Average Pos', 'Max Pos'), fill=c('red', 'black', 'green'))
+names(lPredicted) = names(lFits)
+
