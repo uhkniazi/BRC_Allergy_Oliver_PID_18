@@ -88,10 +88,10 @@ initf = function(chain_id = 1) {
 }
 
 
-# fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=4, pars=c('tau', 'betas2'), init=initf, cores=4,
-#                     control=list(adapt_delta=0.99, max_treedepth = 13))
-# 
-# save(fit.stan, file='temp/fit.stan.binom.serology.rds')
+fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=4, pars=c('tau', 'betas2'), init=initf, cores=4,
+                    control=list(adapt_delta=0.99, max_treedepth = 13))
+
+save(fit.stan, file='temp/fit.stan.binom.serology.rds')
 
 print(fit.stan, c('betas2', 'tau'))
 print(fit.stan, 'tau')
@@ -149,48 +149,7 @@ for(l in 1:ncol(df)){
 }
 abline(h = 0, col='grey')
 
-### there appear to be a lot of correlations in the data
-## find correlated variables
-mCor = cor(log(mData+1e-4), use="na.or.complete")
-library(caret)
-### find the columns that are correlated and should be removed
-n = findCorrelation((mCor), cutoff = 0.7, names=T)
-data.frame(n)
-sapply(n, function(x) {
-  (abs(mCor[,x]) >= 0.7)
-})
 
-### drop some of the correlated variables
-dim(mTreatment)
-i = sample(1:2000, 1000)
-mTreatment.sub = mTreatment[i,]
-pairs(mTreatment.sub[,n], pch=20, col='grey')
-
-# > data.frame(n)
-# n
-# 1               Ara_h_2_sIgE
-# 2                Peanut_sIgE
-# 3               Ara_h_1_sIgE
-# 4    Peanut_specific_acivity
-# 5               Ara_h_3_sIgE
-# 6   Ara_h_1_specific_acivity
-# 7 rAra_h_8_specific_activity
-
-### use variable combinations
-str(dfData)
-set.seed(123)
-oVar.sub = CVariableSelection.ReduceModel(dfData[,-15], dfData$fGroups, boot.num = 500)
-
-# plot the number of variables vs average error rate
-plot.var.selection(oVar.sub)
-# print variable combinations
-for (i in 1:4){
-  cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub, i)
-  cat('Variable Count', i, paste(cvTopGenes.sub), '\n')
-  #print(cvTopGenes.sub)
-}
-
-################# use the one variable at a time to model the data
 #### write the functions to fit models
 # 
 # fit.0 = glm(fGroups ~ ., data=dfData, family='binomial')
@@ -229,6 +188,93 @@ mypred = function(theta, data){
   return(iFitted)
 }
 
+# ## get the coefficient of interest - Modules in our case from the random coefficients section
+mCoef = extract(fit.stan)$betas2
+dim(mCoef)
+colnames(mCoef) = c('Intercept', colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)])
+# pairs(mCoef, pch=20)
+
+
+### once we have results from the classifier we can make some plots to see
+### the performance
+library(lattice)
+library(car)
+## get the predicted values
+dfData.new = dfData
+## create model matrix
+X = as.matrix(cbind(rep(1, times=nrow(dfData.new)), dfData.new[,colnames(mCoef)[-1]]))
+colnames(X) = colnames(mCoef)
+head(X)
+ivPredict.raw = mypred(colMeans(mCoef), list(mModMatrix=X))[,1]
+ivPredict = plogis(ivPredict.raw)
+xyplot(ivPredict ~ fGroups, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)')
+xyplot(ivPredict ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)',
+       main='Predicted scores vs Actual groups')
+densityplot(~ ivPredict, data=dfData, type='n')
+densityplot(~ ivPredict | fGroups, data=dfData, type='n', xlab='Predicted Score', main='Actual Scale')
+densityplot(~ ivPredict, groups=fGroups, data=dfData, type='n', 
+            xlab='Predicted Score', main='Actual Scale', auto.key = list(columns=2))
+
+## lets check on a different scale of the score
+densityplot(~ ivPredict.raw, data=dfData)
+xyplot(ivPredict.raw ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PS (1)')
+densityplot(~ ivPredict.raw, groups=fGroups, data=dfData, type='n', 
+            xlab='Predicted Score', main='Logit Scale', auto.key = list(columns=2))
+
+
+############# ROC curve 
+## draw a ROC curve first for calibration performance test
+library(ROCR)
+ivTruth = fGroups == 'PA'
+p = prediction(ivPredict, ivTruth)
+perf.alive = performance(p, 'tpr', 'fpr')
+dfPerf.alive = data.frame(c=perf.alive@alpha.values, t=perf.alive@y.values[[1]], f=perf.alive@x.values[[1]], 
+                          r=perf.alive@y.values[[1]]/perf.alive@x.values[[1]])
+colnames(dfPerf.alive) = c('c', 't', 'f', 'r')
+plot(perf.alive, main='Classifier Performance to predict PA')
+
+# ### there appear to be a lot of correlations in the data
+# ## find correlated variables
+# mCor = cor(log(mData+1e-4), use="na.or.complete")
+# library(caret)
+# ### find the columns that are correlated and should be removed
+# n = findCorrelation((mCor), cutoff = 0.7, names=T)
+# data.frame(n)
+# sapply(n, function(x) {
+#   (abs(mCor[,x]) >= 0.7)
+# })
+# 
+# ### drop some of the correlated variables
+# dim(mTreatment)
+# i = sample(1:2000, 1000)
+# mTreatment.sub = mTreatment[i,]
+# pairs(mTreatment.sub[,n], pch=20, col='grey')
+# 
+# # > data.frame(n)
+# # n
+# # 1               Ara_h_2_sIgE
+# # 2                Peanut_sIgE
+# # 3               Ara_h_1_sIgE
+# # 4    Peanut_specific_acivity
+# # 5               Ara_h_3_sIgE
+# # 6   Ara_h_1_specific_acivity
+# # 7 rAra_h_8_specific_activity
+
+### use variable combinations
+str(dfData)
+set.seed(123)
+oVar.sub = CVariableSelection.ReduceModel(dfData[,-15], dfData$fGroups, boot.num = 500)
+
+# plot the number of variables vs average error rate
+plot.var.selection(oVar.sub)
+# print variable combinations
+for (i in 1:4){
+  cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub, i)
+  cat('Variable Count', i, paste(cvTopGenes.sub), '\n')
+  #print(cvTopGenes.sub)
+}
+
+################# use the one variable at a time to model the data
 ## set the variables
 dfData.all = data.frame(log(lData.train$data+1e-4))
 dim(dfData.all)
@@ -250,14 +296,14 @@ lFits = lapply(colnames(dfData.all), function(cPredictor) {
   colnames(s) = colnames(lData$mModMatrix)
   apply(s, 2, mean)
   apply(s, 2, sd)
-  pairs(s, pch=20)
+  #pairs(s, pch=20)
   fit.1$sir = s
   return(fit.1)
 })
 
 names(lFits) = colnames(dfData.all)
 
-
+par(mfrow=c(2,2))
 ## plot of coefficients
 temp = lapply(lFits, function(fit.1){
   s = fit.1$sir
@@ -296,7 +342,7 @@ temp = lapply(names(lFits), function(cPredictor){
 library(lattice)
 library(car)
 library(ROCR)
-
+par(mfrow=c(2,2))
 lPredicted = lapply(names(lFits), function(cPredictor){
   ## create model matrix
   X = as.matrix(cbind(rep(1, times=nrow(dfData.all)), dfData.all[,cPredictor]))
@@ -319,4 +365,5 @@ lPredicted = lapply(names(lFits), function(cPredictor){
 })
 
 names(lPredicted) = names(lFits)
+
 
