@@ -211,6 +211,8 @@ dfPerf.alive = data.frame(c=perf.alive@alpha.values, t=perf.alive@y.values[[1]],
                           r=perf.alive@y.values[[1]]/perf.alive@x.values[[1]])
 colnames(dfPerf.alive) = c('c', 't', 'f', 'r')
 plot(perf.alive, main='Classifier Performance to predict PA')
+a = performance(p, 'auc')
+legend('bottomright', paste0('auc ', as.numeric(a@y.values)))
 
 # convert to logit scale for model fitting
 ivPredict = ivPredict.raw
