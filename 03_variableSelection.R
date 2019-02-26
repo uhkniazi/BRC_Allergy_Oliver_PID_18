@@ -48,7 +48,7 @@ rm(df)
 
 if(!require(downloader) || !require(methods)) stop('Library downloader and methods required')
 
-url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/master/CCrossValidation.R'
+url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/CCrossValidation.R'
 download(url, 'CCrossValidation.R')
 
 # load the required packages
@@ -147,6 +147,18 @@ for(l in 1:ncol(df)){
 }
 abline(h = 0, col='grey')
 
+dim(dfData)
+# create the cross validation object
+url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/bernoulli.stan'
+download(url, 'bernoulli.stan')
+
+oCV.s = CCrossValidation.StanBern(dfData[,-113], dfData[, -113], fGroups, fGroups, level.predict = 'PA',
+                                  boot.num = 10, k.fold = 10, ncores = 2, nchains = 2) 
+
+save(oCV.s, file='temp/oCV.s.rds')
+
+plot.cv.performance(oCV.s)
+unlink('bernoulli.stan')
 ################################################# binomial regression with mixture model section
 ################ fit a binomial model on the chosen model size based on previous results
 ## this can be another classifier as well e.g. LDA. Using this model check how is the performance 
@@ -315,8 +327,8 @@ grid = seq(-7, 7, length.out = 100)
 f_getSmatterLines = function(m, s, g){
   return(pnorm(g, m, s, lower.tail = F))
 }
-y = f_getSmatterLines(4.67, 3, grid)
-x = f_getSmatterLines(-3.99, 1.98, grid)
+y = f_getSmatterLines(4.66, 3, grid)
+x = f_getSmatterLines(-4.01, 1.98, grid)
 lines(x, y, col=2, lwd=2)
 
 ## holders for the simulated p-values
@@ -324,7 +336,7 @@ mTP = matrix(NA, nrow = length(grid), ncol = 2000)
 mFP = matrix(NA, nrow = length(grid), ncol = 2000)
 
 for (i in 1:2000){
-  p = sample(1:nrow(mStan), size = 1)
+  p = i #sample(1:nrow(mStan), size = 1)
   x = pnorm(grid, mStan[p, 'mu1'], mStan[p, 'sigma1'], lower.tail = F) 
   y = pnorm(grid, mStan[p, 'mu2'], mStan[p, 'sigma2'], lower.tail=F)
   lines(x, y, col='darkgrey', lwd=0.5)
