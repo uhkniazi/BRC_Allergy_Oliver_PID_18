@@ -48,7 +48,7 @@ rm(df)
 
 if(!require(downloader) || !require(methods)) stop('Library downloader and methods required')
 
-url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/master/CCrossValidation.R'
+url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/CCrossValidation.R'
 download(url, 'CCrossValidation.R')
 
 # load the required packages
@@ -91,7 +91,7 @@ initf = function(chain_id = 1) {
 fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=4, pars=c('tau', 'betas2'), init=initf, cores=4,
                     control=list(adapt_delta=0.99, max_treedepth = 13))
 
-save(fit.stan, file='temp/fit.stan.binom.serology.rds')
+#save(fit.stan, file='temp/fit.stan.binom.serology.rds')
 
 print(fit.stan, c('betas2', 'tau'))
 print(fit.stan, 'tau')
@@ -521,3 +521,40 @@ hist(y, main='True Positive Rate at 0.57', xlab='')
 fPredict = rep('PS', times=length(ivPredict))
 fPredict[ivPredict >= 0.57] = 'PA'
 table(fPredict, fGroups)
+
+####################### perform 5 fold cross validation
+# create the cross validation object
+str(dfData)
+
+# print variable combinations
+for (i in 1:4){
+  cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub, i)
+  cat('Variable Count', i, paste(cvTopGenes.sub), '\n')
+  #print(cvTopGenes.sub)
+}
+
+df = data.frame('var'=dfData$Ara_h_2_sp_ac)
+str(df)
+url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/bernoulli.stan'
+download(url, 'bernoulli.stan')
+
+oCV.s = CCrossValidation.StanBern(df, df, fGroups, fGroups, level.predict = 'PA',
+                                  boot.num = 10, k.fold = 10, ncores = 2, nchains = 2) 
+
+save(oCV.s, file='temp/oCV.s_serology.rds')
+
+plot.cv.performance(oCV.s)
+
+## try other model sizes
+df = dfData[,CVariableSelection.ReduceModel.getMinModel(oVar.sub, 6)]
+str(df)
+
+oCV.lda = CCrossValidation.LDA(df, df, fGroups, fGroups, level.predict = 'PA',
+                                  boot.num = 100, k.fold = 10) 
+
+plot.cv.performance(oCV.lda)
+
+unlink('bernoulli.stan')
+
+
+
