@@ -350,6 +350,18 @@ temp = lapply(names(lFits), function(cPredictor){
   lines(x, plogis(m %*% c), col='black')
 })
 
+## get the coef and se for the variables
+lRes = lapply(lFits, function(x) {
+  m = colMeans(x$sir)
+  s = apply(x$sir, 2, sd)
+  r = signif(c(m, s), 3)
+  names(r) = c('Intercept', 'Coefficient', 'Intercept.SE', 'Coefficient.SE')
+  return(r)
+})
+
+lRes = do.call(rbind, lRes)
+write.csv(lRes, file = 'results/serologyCoef.csv')
+
 ### once we have results from the classifier we can make some plots to see
 ### the performance
 library(lattice)
@@ -522,7 +534,7 @@ fPredict = rep('PS', times=length(ivPredict))
 fPredict[ivPredict >= 0.57] = 'PA'
 table(fPredict, fGroups)
 
-####################### perform 5 fold cross validation
+####################### perform 10 fold cross validation
 # create the cross validation object
 str(dfData)
 

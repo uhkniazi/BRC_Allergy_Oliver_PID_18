@@ -90,7 +90,7 @@ initf = function(chain_id = 1) {
 fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=4, pars=c('tau', 'betas2'), init=initf, cores=4,
                     control=list(adapt_delta=0.99, max_treedepth = 13))
 
-save(fit.stan, file='temp/fit.stan.binom.binary.rds')
+#save(fit.stan, file='temp/fit.stan.binom.binary.rds')
 
 print(fit.stan, c('betas2', 'tau'))
 print(fit.stan, 'tau')
@@ -146,6 +146,16 @@ for(l in 1:ncol(df)){
   lines(x=c(x[l], x[l]), y=df[c(2,3),l], lwd=0.5)
 }
 abline(h = 0, col='grey')
+
+## export the coefficients to results file
+m = c(mean(iIntercept), colMeans(mTreatment))
+s = c(sd(iIntercept), apply(mTreatment, 2, sd))
+r = signif(cbind(m, s), 3)
+colnames(r) = c('Coefficient', 'SE')
+rownames(r)[1] = 'Intercept'
+
+write.csv(r, file = 'results/ISACCoef.csv')
+
 
 dim(dfData)
 # create the cross validation object
