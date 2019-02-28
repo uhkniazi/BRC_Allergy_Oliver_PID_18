@@ -215,6 +215,13 @@ densityplot(~ ivPredict | fGroups, data=dfData, type='n', xlab='Predicted Score'
 densityplot(~ ivPredict, groups=fGroups, data=dfData, type='n', 
             xlab='Predicted Score', main='Actual Scale', auto.key = list(columns=2))
 
+## identify possible outliers/misclassified observations
+df = data.frame(fGroups, ivPredict)
+i = which(df$fGroups == 'PS' & df$ivPredict > 0.4)
+rownames(df)[i]
+i = which(df$fGroups == 'PA' & df$ivPredict < 0.5)
+rownames(df)[i]
+
 ## lets check on a different scale of the score
 densityplot(~ ivPredict.raw, data=dfData)
 xyplot(ivPredict.raw ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PS (1)')
@@ -267,6 +274,7 @@ legend('bottomright', paste0('auc ', as.numeric(a@y.values)))
 # # 7 rAra_h_8_specific_activity
 
 ### plot the data
+library(lattice)
 df = dfData[,-15]
 df = stack(df)
 df$fGroups = fGroups
@@ -393,11 +401,31 @@ lPredicted = lapply(names(lFits), function(cPredictor){
 
 names(lPredicted) = names(lFits)
 
+## add figures for each variable
+pdf('results/figures/predicted_vs_actual all.pdf')
+temp = lapply(names(lPredicted), function(x){
+  ivPredict = plogis(lPredicted[[x]])
+  temp = xyplot(ivPredict ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)',
+         main=paste0('Predicted scores vs Actual groups - ', x))
+  print(temp)
+})
+dev.off(dev.cur())
+
+
 ## further analysis for top variable of choice
 ivPredict = lPredicted$Ara_h_2_sp_ac
 densityplot(~ ivPredict, groups=fGroups)
 xyplot(plogis(ivPredict) ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)',
        main='Predicted scores vs Actual groups')
+
+## identify possible outliers/misclassified observations
+df = data.frame(fGroups = lData.train$covariates$Allergic.Status, ivPredict)
+rownames(df) = as.character(lData.train$covariates$Patient_ID)
+i = which(df$fGroups == 'PS' & df$ivPredict > 0.4)
+rownames(df)[i]
+i = which(df$fGroups == 'PA' & df$ivPredict < 0.5)
+rownames(df)[i]
+
 ################################ section for mixture model
 ######## this mixture model will help us decide an appropriate cutoff for the decision rule
 ######## see Gelman 2013 around P18 for an example of record linking score calibration

@@ -217,6 +217,12 @@ densityplot(~ ivPredict | fGroups, data=dfData, type='n', xlab='Predicted Score'
 densityplot(~ ivPredict, groups=fGroups, data=dfData, type='n', 
             xlab='Predicted Score', main='Actual Scale', auto.key = list(columns=2))
 
+## identify possible outliers/misclassified observations
+df = data.frame(fGroups, ivPredict)
+i = which(df$fGroups == 'PS' & df$ivPredict > 0.4)
+rownames(df)[i]
+i = which(df$fGroups == 'PA' & df$ivPredict < 0.5)
+rownames(df)[i]
 ## lets check on a different scale of the score
 densityplot(~ ivPredict.raw, data=dfData)
 xyplot(ivPredict.raw ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PS (1)')
