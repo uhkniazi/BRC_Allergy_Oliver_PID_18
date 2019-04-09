@@ -18,7 +18,7 @@ q = paste0('select MetaFile.* from MetaFile
            where (MetaFile.idData = 36)')
 dfSample = dbGetQuery(db, q)
 dfSample
-n = paste0(dfSample$location, dfSample$name)
+n = paste0(dfSample$location[2], dfSample$name[2])
 df = read.csv(n, header=T)
 
 # close connection after getting data
@@ -61,7 +61,7 @@ dfData = data.frame(lData.train$data)
 fGroups = lData.train$covariates$Allergic.Status
 
 oVar.r = CVariableSelection.RandomForest(dfData, fGroups, boot.num = 100)
-save(oVar.r, file='temp/oVar.r_binary.rds')
+save(oVar.r, file='temp/oVar.r_binary2.rds')
 
 plot.var.selection(oVar.r)
 
@@ -154,20 +154,30 @@ r = signif(cbind(m, s), 3)
 colnames(r) = c('Coefficient', 'SE')
 rownames(r)[1] = 'Intercept'
 
-write.csv(r, file = 'results/ISACCoef.csv')
-
+write.csv(r, file = 'results/ISACCoef_subset.csv')
 
 dim(dfData)
 # create the cross validation object
 url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/bernoulli.stan'
 download(url, 'bernoulli.stan')
 
-oCV.s = CCrossValidation.StanBern(dfData[,-113], dfData[, -113], fGroups, fGroups, level.predict = 'PA',
+oCV.s = CCrossValidation.StanBern(dfData[,-50], dfData[, -50], fGroups, fGroups, level.predict = 'PA',
                                   boot.num = 10, k.fold = 10, ncores = 2, nchains = 2) 
 
-save(oCV.s, file='temp/oCV.s.rds')
+save(oCV.s, file='temp/oCV.stan_subset.rds')
 
 plot.cv.performance(oCV.s)
+
+## test only the top 2 predictors
+oCV.s2 = CCrossValidation.StanBern(dfData[,c('Ara.h.6', 'Ara.h.2')], dfData[, c('Ara.h.6', 'Ara.h.2')], 
+                                   fGroups, fGroups, level.predict = 'PA',
+                                  boot.num = 10, k.fold = 10, ncores = 2, nchains = 2) 
+
+save(oCV.s2, file='temp/oCV.stan_subset_top2Predictors.rds')
+
+plot.cv.performance(oCV.s2)
+
+
 unlink('bernoulli.stan')
 ################################################# binomial regression with mixture model section
 ################ fit a binomial model on the chosen model size based on previous results
@@ -219,9 +229,9 @@ densityplot(~ ivPredict, groups=fGroups, data=dfData, type='n',
 
 ## identify possible outliers/misclassified observations
 df = data.frame(fGroups, ivPredict)
-i = which(df$fGroups == 'PS' & df$ivPredict > 0.4)
+i = which(df$fGroups == 'PS' & df$ivPredict > 0.5)
 rownames(df)[i]
-i = which(df$fGroups == 'PA' & df$ivPredict < 0.5)
+i = which(df$fGroups == 'PA' & df$ivPredict <= 0.5)
 rownames(df)[i]
 ## lets check on a different scale of the score
 densityplot(~ ivPredict.raw, data=dfData)
