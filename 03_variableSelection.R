@@ -25,6 +25,11 @@ df = read.csv(n, header=T)
 dbDisconnect(db)
 
 dim(df)
+######## take these steps if we wish to include NA i.e. healthy people from the panel in the analysis
+df$Allergic.Status = gsub(' ', '', as.character(df$Allergic.Status))
+df$Allergic.Status[is.na(df$Allergic.Status)] = 'PS'
+
+######## extra steps section ends
 df = na.omit(df)
 df$Patient = factor(gsub(' ', '', as.character(df$Patient)))
 df$Allergic.Status = factor(gsub(' ', '', as.character(df$Allergic.Status)), levels = c('PS', 'PA'))
