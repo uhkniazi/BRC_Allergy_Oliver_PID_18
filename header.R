@@ -6,7 +6,7 @@
 
 ## variables
 g_pid = 18
-g_did = c(36, 37)
+g_did = c(36, 37, 40)
 gcswd = getwd()
 
 p.old = par()
