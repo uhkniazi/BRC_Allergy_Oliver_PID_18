@@ -90,3 +90,158 @@ df = data.frame(idData=40, name=n, type='rds', location='~/Data/MetaData/', comm
 #dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
 dbDisconnect(db)
 
+################# preliminary model fitting
+dfData.bk = dfData
+dfData = dfData[dfData$Allergic.Status == 'PA',]
+dfData = dfData[,-c(1,2)]
+
+df = stack(dfData[,-c(16)])
+df$y = dfData$CD63.Act
+
+xyplot(y ~ log(values+0.5) | ind, data=df, type=c('g', 'p', 'r'), pch=19, cex=0.6,
+       index.cond = function(x,y) coef(lm(y ~ x))[1], #aspect='xy',# layout=c(8,2),
+       par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'))
+
+xyplot(y ~ log(values+0.5) | ind, data=df, type=c('smooth'), pch=19, cex=0.6,
+       par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'))
+
+xyplot(y ~ values | ind, data=df, type=c('smooth'), pch=19, cex=0.6,
+       par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'))
+
+## transformation of the covariates
+fit.1 = lm(CD63.Act ~ Peanut.Sp.Act, data=dfData)
+fit.2 = lm(CD63.Act ~ log(Peanut.Sp.Act), data=dfData)
+summary(fit.1)
+summary(fit.2)
+
+s1 = simulate(fit.1, 20)
+s2 = simulate(fit.2, 20)
+par(mfrow=c(2,3))
+plot(density(dfData$CD63.Act))
+
+plot(density(simulate(fit.1, 1)[,1]))
+apply(s1, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
+lines(density(dfData$CD63.Act), col=2)
+
+plot(density(simulate(fit.2, 1)[,1]))
+apply(s2, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
+lines(density(dfData$CD63.Act), col=2)
+
+dfData.new = dfData
+dfData.new$Peanut.Sp.Act = log(dfData$Peanut.Sp.Act)
+
+## repeat for each covariate
+fit.1 = lm(CD63.Act ~ Peanut.SPT, data=dfData)
+fit.2 = lm(CD63.Act ~ log(Peanut.SPT), data=dfData)
+summary(fit.1)
+summary(fit.2)
+
+s1 = simulate(fit.1, 20)
+s2 = simulate(fit.2, 20)
+par(mfrow=c(2,3))
+plot(density(dfData$CD63.Act))
+
+plot(density(simulate(fit.1, 1)[,1]))
+apply(s1, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
+lines(density(dfData$CD63.Act), col=2)
+
+plot(density(simulate(fit.2, 1)[,1]))
+apply(s2, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
+lines(density(dfData$CD63.Act), col=2)
+
+###
+fit.1 = lm(CD63.Act ~ total.IgE, data=dfData)
+fit.2 = lm(CD63.Act ~ log(total.IgE), data=dfData)
+summary(fit.1)
+summary(fit.2)
+
+s1 = simulate(fit.1, 20)
+s2 = simulate(fit.2, 20)
+par(mfrow=c(2,3))
+plot(density(dfData$CD63.Act))
+
+plot(density(simulate(fit.1, 1)[,1]))
+apply(s1, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
+lines(density(dfData$CD63.Act), col=2)
+
+plot(density(simulate(fit.2, 1)[,1]))
+apply(s2, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
+lines(density(dfData$CD63.Act), col=2)
+
+dfData.new$total.IgE = log(dfData$total.IgE)
+
+
+###
+fit.1 = lm(CD63.Act ~ ., data=dfData)
+summary(fit.1)
+s1 = simulate(fit.1, 20)
+
+par(mfrow=c(2,2))
+plot(density(dfData$CD63.Act))
+
+plot(density(simulate(fit.1, 1)[,1]))
+apply(s1, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
+lines(density(dfData$CD63.Act), col=2)
+
+#################### use stan to generate MCMC sample
+library(rstan)
+rstan_options(auto_write = TRUE)
+options(mc.cores = parallel::detectCores())
+stanDso = rstan::stan_model(file='tResponseRegression.stan')
+
+m = model.matrix(CD63.Act ~ ., data=dfData)
+
+lStanData = list(Ntotal=nrow(dfData), Ncol=ncol(m), X=m,
+                 y=dfData$CD63.Act)
+
+fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=2, pars=c('betas', 'mu', 'sigmaPop', 'nu'),
+                    cores=2)
+print(fit.stan, c('betas', 'sigmaPop', 'nu'), digits=3)
+
+# some diagnostics for stan
+traceplot(fit.stan, c('sigmaPop', 'nu'), ncol=1, inc_warmup=F)
+pairs(fit.stan, pars = c("sigmaPop", "nu", "lp__"))
+pairs(fit.stan, pars = c("betas", "lp__"))
+
+m = extract(fit.stan, 'betas')
+betas = colMeans(m$betas)
+names(betas) = colnames(lStanData$X)
+# compare with lm 
+data.frame(coef(fit.1), betas)
+
+s = cbind(extract(fit.stan)$betas, extract(fit.stan)$sigmaPop)
+colnames(s) = c(colnames(lStanData$X), 'sigmaPop')
+pairs(s, pch=20)
+
+### partial pooling of coefficients
+stanDso.2 = rstan::stan_model(file='tResponseRegression_partialPooling.stan')
+
+m = model.matrix(CD63.Act ~ ., data=dfData)
+
+lStanData = list(Ntotal=nrow(dfData), Ncol=ncol(m), X=m,
+                 y=dfData$CD63.Act)
+
+fit.stan.2 = sampling(stanDso.2, data=lStanData, iter=1000, chains=2, pars=c('betas', 'mu', 'sigmaPop', 'nu', 'sigmaRan'),
+                    cores=2)
+print(fit.stan.2, c('betas', 'sigmaPop', 'sigmaRan', 'nu'), digits=3)
+
+# some diagnostics for stan
+pairs(fit.stan.2, pars = c("sigmaPop", "sigmaRan", 'betas[1]', 'nu', "lp__"))
+pairs(fit.stan.2, pars = c("betas", "lp__"))
+
+m = extract(fit.stan.2, 'betas')
+betas.2 = colMeans(m$betas)
+names(betas.2) = colnames(lStanData$X)
+# compare with lm 
+data.frame(coef(fit.1), betas, betas.2)
+
+s2 = cbind(extract(fit.stan.2)$betas, extract(fit.stan.2)$sigmaPop, extract(fit.stan.2)$sigmaRan)
+colnames(s2) = c(colnames(lStanData$X), 'sigmaPop', 'sigmaRan')
+pairs(s2, pch=20)
+
+
+
+
+
+
+
