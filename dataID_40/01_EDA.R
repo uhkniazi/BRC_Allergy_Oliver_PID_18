@@ -239,9 +239,151 @@ s2 = cbind(extract(fit.stan.2)$betas, extract(fit.stan.2)$sigmaPop, extract(fit.
 colnames(s2) = c(colnames(lStanData$X), 'sigmaPop', 'sigmaRan')
 pairs(s2, pch=20)
 
+###########################################################
+##### Plot Coefficients
+###########################################################
+## get the coefficient of interest
+mCoef = extract(fit.stan.2)$betas
+dim(mCoef)
+## get the intercept 
+iIntercept = mCoef[,1]
+mCoef = mCoef[,-1]
+colnames(mCoef) = colnames(lStanData$X)[2:ncol(lStanData$X)]
+
+## function to calculate statistics for a coefficient
+getDifference = function(ivData){
+  # get the difference vector
+  d = ivData
+  # get the z value
+  z = mean(d)/sd(d)
+  # get 2 sided p-value
+  p = pnorm(-abs(mean(d)/sd(d)))*2
+  return(p)
+}
+
+ivPval = apply(mCoef, 2, getDifference)
+hist(ivPval)
+plot(colMeans(mCoef), ivPval, pch=19)
+m = colMeans(mCoef)
+#names(m) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
+text(colMeans(mCoef), ivPval, names(m), pos=1)
+m = abs(m)
+m = sort(m, decreasing = T)
+
+par(mar=c(6,3,4,2)+0.1)
+l2 = barplot(m[1:length(m)], 
+             las=2, xaxt='n', col='grey', main='Top Variables', ylab='Absolute Coefficient')
+axis(1, at = l2, labels = names(m)[1:length(m)], tick = F, las=2, cex.axis=0.7 )
+
+## format for line plots
+m = colMeans(mCoef)
+#names(m) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
+m = sort(m, decreasing = T)
+mTreatment = mCoef[,names(m)]
+
+df = apply(mTreatment, 2, getms)
+x = 1:ncol(mTreatment)
+
+par(p.old)
+plot(x, df['m',], ylim=c(min(df), max(df)), pch=20, xlab='', main='Average Effect on Activation',
+     ylab='Slopes', xaxt='n')
+axis(1, at = x, labels = colnames(mTreatment), las=2, cex.axis=0.7)
+for(l in 1:ncol(df)){
+  lines(x=c(x[l], x[l]), y=df[c(2,3),l], lwd=0.5)
+}
+abline(h = 0, col='grey')
+
+# ## export the coefficients to results file
+# m = c(mean(iIntercept), colMeans(mTreatment))
+# s = c(sd(iIntercept), apply(mTreatment, 2, sd))
+# r = signif(cbind(m, s), 3)
+# colnames(r) = c('Coefficient', 'SE')
+# rownames(r)[1] = 'Intercept'
+# 
+# write.csv(r, file = 'results/ISACCoef.csv')
+######## end plot coefficients
+###########################################################
+
+###########################################################
+######## model checks
+###########################################################
+mFitted = extract(fit.stan)$mu
+fitted = colMeans(mFitted)
+# get residuals that is response minus fitted values
+iResid = (dfData$CD63.Act - fitted)
+plot(fitted, iResid, pch=20, cex=0.5)
+lines(lowess(fitted, iResid), col=2, lwd=2)
+
+## calculate standardized residuals
+## these are useful to detect non-normality
+## see equation 14.7 in Gelman 2013
+s = mean(extract(fit.stan)$sigmaPop)
+plot(fitted, iResid/s, pch=20, cex=0.5, main='standardized residuals')
+lines(lowess(fitted, iResid/s), col=2, lwd=2)
+
+### generate some posterior predictive data
+## follow the algorithm in section 14.3 page 363 in Gelman 2013
+simulateOne = function(betas, sigma, mModMatrix, groupMap){
+  f = mModMatrix %*% betas
+  yrep = rnorm(length(f), f, sigma[groupMap])
+  return(yrep)
+}
+
+runRegression = function(yrep, lStanData){
+  lStanData$y = yrep
+  f.s = sampling(stanDso, data=lStanData, iter=1000, chains=2, pars=c('betas', 'mu', 'sigmaPop'),
+                 cores=2)
+  return(f.s)
+}
+
+# returns residuals
+getResiduals = function(fit.object, mModMatrix, yrep){
+  b = colMeans(extract(fit.object)$betas)
+  f = mModMatrix %*% b
+  r = (yrep - f)
+  return(r)
+}
+
+
+## sample n values, 1000 times
+mDraws.sim = matrix(NA, nrow = nrow(dfData), ncol=1000)
+mDraws.fitted = matrix(NA, nrow = nrow(dfData), ncol=1000)
+mDraws.res = matrix(NA, nrow = nrow(dfData), ncol=1000)
+dim(mStan)
+for (i in 1:1000){
+  p = sample(1:nrow(mStan), 1)
+  sigma = mStan[p,5:6]
+  betas = mStan[p, 1:4]
+  mDraws.sim[,i] = simulateOne(betas, sigma, lStanData$X, as.numeric(dfData$treatment))
+  f.s = runRegression(mDraws.sim[,i], lStanData)
+  mDraws.fitted[,i] = apply(extract(f.s)$mu, 2, mean)
+  mDraws.res[,i] = getResiduals(f.s, lStanData$X,
+                                mDraws.sim[,i])
+}
+
+### visual checks
+ivResp = dfData$response
+yresp = density(ivResp)
+plot(yresp, xlab='', main='Fitted distribution', ylab='density', lwd=2)#, ylim=c(0, 1))
+hist(ivResp, prob=T, main='Original Data with simulated data', xlab='Response Variable')
+temp = apply(mDraws.sim, 2, function(x) {x = density(x)
+#x$y = x$y/max(x$y)
+lines(x, col='lightgrey', lwd=0.6)
+})
+lines(yresp)
+
+### plot the residuals
+plot(dfData$response, iResid, pch=c(2,20)[as.numeric(dfData$treatment)], cex=0.5, main='MCMC')
+lines(lowess(dfData$response, iResid))
+
+plot(density(iResid))
+g = apply(mDraws.res, 2, function(x) lines(density(x), lwd=0.5, col=2))
+lines(density(iResid))
 
 
 
+####### end model checks
+###########################################################
 
 
 
