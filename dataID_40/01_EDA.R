@@ -307,7 +307,7 @@ abline(h = 0, col='grey')
 ###########################################################
 ######## model checks
 ###########################################################
-mFitted = extract(fit.stan)$mu
+mFitted = extract(fit.stan.2)$mu
 fitted = colMeans(mFitted)
 # get residuals that is response minus fitted values
 iResid = (dfData$CD63.Act - fitted)
@@ -317,9 +317,24 @@ lines(lowess(fitted, iResid), col=2, lwd=2)
 ## calculate standardized residuals
 ## these are useful to detect non-normality
 ## see equation 14.7 in Gelman 2013
-s = mean(extract(fit.stan)$sigmaPop)
+s = mean(extract(fit.stan.2)$sigmaPop)
 plot(fitted, iResid/s, pch=20, cex=0.5, main='standardized residuals')
 lines(lowess(fitted, iResid/s), col=2, lwd=2)
+
+## checking for non-linearity
+n = colnames(dfData)
+n = n[-(length(n))]
+par(mfrow=c(2,2))
+sapply(n, function(x){
+  plot(dfData[,x], iResid, main=paste(x))
+  lines(lowess(dfData[,x], iResid), col=2)
+})
+
+## unequal variances
+sapply(n, function(x){
+  plot(dfData[,x], abs(iResid), main=paste(x))
+  lines(lowess(dfData[,x], abs(iResid)), col=2)
+})
 
 ### generate some posterior predictive data
 ## follow the algorithm in section 14.3 page 363 in Gelman 2013
