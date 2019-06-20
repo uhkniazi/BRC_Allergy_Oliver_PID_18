@@ -80,7 +80,7 @@ summary(dfData)
 ## save this data for further analysis
 n = make.names(paste('Imputed data for mechanistic analysis data ID 40 rds'))
 n2 = paste0('~/Data/MetaData/', n)
-save(dfData, file=n2)
+#save(dfData, file=n2)
 
 ## note: comment out as this entry has been made in db
 db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
@@ -109,67 +109,67 @@ xyplot(y ~ values | ind, data=df, type=c('smooth'), pch=19, cex=0.6,
        par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'))
 
 ## transformation of the covariates
-fit.1 = lm(CD63.Act ~ Peanut.Sp.Act, data=dfData)
-fit.2 = lm(CD63.Act ~ log(Peanut.Sp.Act), data=dfData)
-summary(fit.1)
-summary(fit.2)
-
-s1 = simulate(fit.1, 20)
-s2 = simulate(fit.2, 20)
-par(mfrow=c(2,3))
-plot(density(dfData$CD63.Act))
-
-plot(density(simulate(fit.1, 1)[,1]))
-apply(s1, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
-lines(density(dfData$CD63.Act), col=2)
-
-plot(density(simulate(fit.2, 1)[,1]))
-apply(s2, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
-lines(density(dfData$CD63.Act), col=2)
-
-dfData.new = dfData
-dfData.new$Peanut.Sp.Act = log(dfData$Peanut.Sp.Act)
-
-## repeat for each covariate
-fit.1 = lm(CD63.Act ~ Peanut.SPT, data=dfData)
-fit.2 = lm(CD63.Act ~ log(Peanut.SPT), data=dfData)
-summary(fit.1)
-summary(fit.2)
-
-s1 = simulate(fit.1, 20)
-s2 = simulate(fit.2, 20)
-par(mfrow=c(2,3))
-plot(density(dfData$CD63.Act))
-
-plot(density(simulate(fit.1, 1)[,1]))
-apply(s1, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
-lines(density(dfData$CD63.Act), col=2)
-
-plot(density(simulate(fit.2, 1)[,1]))
-apply(s2, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
-lines(density(dfData$CD63.Act), col=2)
-
-###
-fit.1 = lm(CD63.Act ~ total.IgE, data=dfData)
-fit.2 = lm(CD63.Act ~ log(total.IgE), data=dfData)
-summary(fit.1)
-summary(fit.2)
-
-s1 = simulate(fit.1, 20)
-s2 = simulate(fit.2, 20)
-par(mfrow=c(2,3))
-plot(density(dfData$CD63.Act))
-
-plot(density(simulate(fit.1, 1)[,1]))
-apply(s1, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
-lines(density(dfData$CD63.Act), col=2)
-
-plot(density(simulate(fit.2, 1)[,1]))
-apply(s2, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
-lines(density(dfData$CD63.Act), col=2)
-
-dfData.new$total.IgE = log(dfData$total.IgE)
-
+# fit.1 = lm(CD63.Act ~ Peanut.Sp.Act, data=dfData)
+# fit.2 = lm(CD63.Act ~ log(Peanut.Sp.Act), data=dfData)
+# summary(fit.1)
+# summary(fit.2)
+# 
+# s1 = simulate(fit.1, 20)
+# s2 = simulate(fit.2, 20)
+# par(mfrow=c(2,3))
+# plot(density(dfData$CD63.Act))
+# 
+# plot(density(simulate(fit.1, 1)[,1]))
+# apply(s1, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
+# lines(density(dfData$CD63.Act), col=2)
+# 
+# plot(density(simulate(fit.2, 1)[,1]))
+# apply(s2, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
+# lines(density(dfData$CD63.Act), col=2)
+# 
+# dfData.new = dfData
+# dfData.new$Peanut.Sp.Act = log(dfData$Peanut.Sp.Act)
+# 
+# ## repeat for each covariate
+# fit.1 = lm(CD63.Act ~ Peanut.SPT, data=dfData)
+# fit.2 = lm(CD63.Act ~ log(Peanut.SPT), data=dfData)
+# summary(fit.1)
+# summary(fit.2)
+# 
+# s1 = simulate(fit.1, 20)
+# s2 = simulate(fit.2, 20)
+# par(mfrow=c(2,3))
+# plot(density(dfData$CD63.Act))
+# 
+# plot(density(simulate(fit.1, 1)[,1]))
+# apply(s1, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
+# lines(density(dfData$CD63.Act), col=2)
+# 
+# plot(density(simulate(fit.2, 1)[,1]))
+# apply(s2, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
+# lines(density(dfData$CD63.Act), col=2)
+# 
+# ###
+# fit.1 = lm(CD63.Act ~ total.IgE, data=dfData)
+# fit.2 = lm(CD63.Act ~ log(total.IgE), data=dfData)
+# summary(fit.1)
+# summary(fit.2)
+# 
+# s1 = simulate(fit.1, 20)
+# s2 = simulate(fit.2, 20)
+# par(mfrow=c(2,3))
+# plot(density(dfData$CD63.Act))
+# 
+# plot(density(simulate(fit.1, 1)[,1]))
+# apply(s1, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
+# lines(density(dfData$CD63.Act), col=2)
+# 
+# plot(density(simulate(fit.2, 1)[,1]))
+# apply(s2, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
+# lines(density(dfData$CD63.Act), col=2)
+# 
+# dfData.new$total.IgE = log(dfData$total.IgE)
+# 
 
 ###
 fit.1 = lm(CD63.Act ~ ., data=dfData)
@@ -240,6 +240,40 @@ colnames(s2) = c(colnames(lStanData$X), 'sigmaPop', 'sigmaRan')
 pairs(s2, pch=20)
 
 ###########################################################
+###### 2 component finite mixture model
+###########################################################
+library(flexmix)
+fit.flex = flexmix(CD63.Act ~ 1, data=dfData, k=2)
+summary(fit.flex)
+## fitted coefficients
+parameters(fit.flex)
+plot(density(dfData$CD63.Act))
+## give initial values if you want, look at the density plot 
+initf = function(chain_id = 1) {
+  list(mu = c(0.7, 36), sigmaPop = c(1.5, 18.7), iMixWeights=c(0.5, 0.5))
+} 
+
+stanDso.3 = rstan::stan_model(file='normResponseFiniteMixture_partialPooling.stan')
+
+m = model.matrix(CD63.Act ~ . -1, data=dfData)
+
+
+lStanData = list(Ntotal=nrow(dfData), Ncol=ncol(m), X=m, 
+                 iMixtures=2,
+                 iIntercepts=c(0.7, 40),
+                 y=dfData$CD63.Act)
+
+fit.stan.3 = sampling(stanDso.3, data=lStanData, iter=4000, chains=4, pars=c('betas', 'mu', 'muFitted', 'sigmaPop', 'sigmaRan',
+                                                                            'iMixWeights'),
+                      cores=4, control=list(adapt_delta=0.99, max_treedepth = 12), init=initf)
+print(fit.stan.3, c('betas', 'sigmaPop', 'sigmaRan', 'iMixWeights', 'mu'), digits=3)
+traceplot(fit.stan.3, c('sigmaRan', 'sigmaPop', 'mu', 'iMixWeights'))
+###### end finite mixture model
+
+
+
+
+###########################################################
 ##### Plot Coefficients
 ###########################################################
 ## get the coefficient of interest
@@ -305,7 +339,7 @@ abline(h = 0, col='grey')
 ###########################################################
 
 ###########################################################
-######## model checks
+######## model checks for residuals
 ###########################################################
 mFitted = extract(fit.stan.2)$mu
 fitted = colMeans(mFitted)
@@ -317,7 +351,7 @@ lines(lowess(fitted, iResid), col=2, lwd=2)
 ## calculate standardized residuals
 ## these are useful to detect non-normality
 ## see equation 14.7 in Gelman 2013
-s = mean(extract(fit.stan.2)$sigmaPop)
+s = mean(extract(fit.stan.2)$nu)
 plot(fitted, iResid/s, pch=20, cex=0.5, main='standardized residuals')
 lines(lowess(fitted, iResid/s), col=2, lwd=2)
 
@@ -397,8 +431,117 @@ lines(density(iResid))
 
 
 
-####### end model checks
+####### end model checks residuals
 ###########################################################
 
+###########################################################
+######## model checks for data distribution
+###########################################################
+## calculate bayesian p-value for a test statistic
+getPValue = function(Trep, Tobs){
+  left = sum(Trep <= Tobs)/length(Trep)
+  right = sum(Trep >= Tobs)/length(Trep)
+  return(min(left, right))
+}
+## define some test quantities to measure the lack of fit
+## define a test quantity T(y, theta)
+## variance
+T1_var = function(Y) return(var(Y))
 
+## min quantity
+T1_min = function(Y){
+  return(min(Y))
+} 
+
+## max quantity
+T1_max = function(Y){
+  return(max(Y))
+} 
+
+## mean quantity
+T1_mean = function(Y){
+  return(mean(Y))
+} 
+
+## median quantity
+T1_median = function(Y){
+  return(median(Y))
+} 
+
+## mChecks
+mChecks = matrix(NA, nrow=5, ncol=2)
+rownames(mChecks) = c('Variance', 'Median', 'Max', 'Min', 'Mean')
+colnames(mChecks) = c('student', 'mixture')
+
+## generate random samples from alternative t-distribution parameterization
+## see https://grollchristian.wordpress.com/2013/04/30/students-t-location-scale/
+rt_ls <- function(n, df, mu, a) rt(n,df)*a + mu
+
+ivResp = dfData$CD63.Act
+########## simulate 200 test replications of test quantities
+mDraws = matrix(NA, nrow = length(ivResp), ncol=200)
+mThetas = matrix(NA, nrow=200, ncol=4)
+colnames(mThetas) = c('mu', 'median', 'scale', 'nu')
+
+# sample of values from the simulation
+l = extract(fit.stan.2)
+names(l)
+
+sigSample = l$sigmaPop
+muSample = l$mu
+nuSample = l$nu
+dim(muSample)
+dim(mDraws)
+
+for (i in 1:200){
+  p = sample(1:nrow(muSample), size = 1)
+  s = sigSample[p]
+  m = muSample[p,]
+  n = nuSample[p]
+  mDraws[,i] = rt_ls(length(m), n, m, s)
+  mThetas[i,] = c(mean(m), median(m), s, n)
+}
+
+mDraws.t = mDraws
+## get the p-values for the test statistics
+t1 = apply(mDraws, 2, T1_var)
+mChecks['Variance', 'student'] = getPValue(t1, var(ivResp))
+
+## testing for outlier detection
+t1 = apply(mDraws, 2, T1_min)
+mChecks['Min', 'student'] = getPValue(t1, T1_min(ivResp))
+
+## maximum value
+t1 = apply(mDraws, 2, T1_max)
+mChecks['Max', 'student'] = getPValue(t1, T1_max(ivResp))
+
+## mean value
+t1 = apply(mDraws, 2, T1_mean)
+mChecks['Mean', 'student'] = getPValue(t1, T1_mean(ivResp))
+
+## median value
+t1 = apply(mDraws, 2, T1_median)
+mChecks['Median', 'student'] = getPValue(t1, T1_median(ivResp))
+
+mChecks
+
+## plots of densities
+yresp = density(ivResp)
+plot(yresp, xlab='', main='Fitted distribution', ylab='density', lwd=2)
+hist(ivResp, prob=T, add=T)
+temp = apply(mDraws.t, 2, function(x) {x = density(x)
+#x$y = x$y/max(x$y)
+lines(x, col='red', lwd=0.6)
+})
+lines(yresp, lwd=2)
+
+hist(ivResp, prob=T)
+## t samples
+temp = apply(mDraws.t, 2, function(x) {x = density(x)
+#x$y = x$y/max(x$y)
+lines(x, col='red', lwd=0.6)
+})
+
+####### end model checks for data distribution
+###########################################################
 
