@@ -250,7 +250,7 @@ parameters(fit.flex)
 plot(density(dfData$CD63.Act))
 ## give initial values if you want, look at the density plot 
 initf = function(chain_id = 1) {
-  list(mu = c(0.7, 36), sigmaPop = c(1.5, 18.7), iMixWeights=c(0.5, 0.5))
+  list(mu = c(0, 36), sigmaPop = c(1, 1), iMixWeights=c(0.5, 0.5))
 } 
 
 stanDso.3 = rstan::stan_model(file='normResponseFiniteMixture_partialPooling.stan')
@@ -260,14 +260,47 @@ m = model.matrix(CD63.Act ~ . -1, data=dfData)
 
 lStanData = list(Ntotal=nrow(dfData), Ncol=ncol(m), X=m, 
                  iMixtures=2,
-                 iIntercepts=c(0.7, 40),
+                 #iIntercepts=c(0.7, 40),
                  y=dfData$CD63.Act)
 
-fit.stan.3 = sampling(stanDso.3, data=lStanData, iter=4000, chains=4, pars=c('betas', 'mu', 'muFitted', 'sigmaPop', 'sigmaRan',
+fit.stan.3 = sampling(stanDso.3, data=lStanData, iter=10000, chains=4, pars=c('betas', 'mu', 'muFitted', 'sigmaPop',
                                                                             'iMixWeights'),
-                      cores=4, control=list(adapt_delta=0.99, max_treedepth = 12), init=initf)
-print(fit.stan.3, c('betas', 'sigmaPop', 'sigmaRan', 'iMixWeights', 'mu'), digits=3)
-traceplot(fit.stan.3, c('sigmaRan', 'sigmaPop', 'mu', 'iMixWeights'))
+                      cores=2, control=list(adapt_delta=0.99, max_treedepth = 12), init=initf)
+print(fit.stan.3, c('betas', 'sigmaPop', 'iMixWeights', 'mu'), digits=3)
+traceplot(fit.stan.3, c('sigmaPop', 'mu', 'iMixWeights'))
+pairs(fit.stan.3, pars = c("sigmaPop", 'mu', "lp__"))
+
+############# extract the mcmc sample values from stan
+l = extract(fit.stan.3)
+names(l)
+mStan = cbind(l$mu, l$sigmaPop, l$iMixWeights)
+dim(mStan)
+colnames(mStan) = c('mu1', 'mu2', 'sigma1', 'sigma2', 'mix1', 'mix2')
+dim(mStan)
+colMeans(mStan)
+mf = l$muFitted
+dim(mf)
+## get a sample for this distribution
+########## simulate 200 test quantities
+mDraws = matrix(NA, nrow = length(dfData$CD63.Act), ncol=200)
+
+for (i in 1:200){
+  p = sample(1:nrow(mStan), size = 1)
+  mix = mean(mStan[,'mix1'])
+  ## this will take a sample from a normal mixture distribution
+  sam = function() {
+    ind = rbinom(ncol(mf), 1, prob = mix)
+    return(ind * rnorm(ncol(mf), mStan[p, 'mu1']+mf[p,], mStan[p, 'sigma1']) + 
+             (1-ind) * rnorm(ncol(mf), mStan[p, 'mu2']+mf[p,], mStan[p, 'sigma2']))
+  }
+  mDraws[,i] = sam()
+}
+
+mDraws.normMix = mDraws
+
+betas.3 = colMeans(extract(fit.stan.3)$betas)
+data.frame(coef(fit.1), betas, betas.2, c(NA, betas.3))
+
 ###### end finite mixture model
 
 
@@ -277,12 +310,12 @@ traceplot(fit.stan.3, c('sigmaRan', 'sigmaPop', 'mu', 'iMixWeights'))
 ##### Plot Coefficients
 ###########################################################
 ## get the coefficient of interest
-mCoef = extract(fit.stan.2)$betas
+mCoef = extract(fit.stan.3)$betas
 dim(mCoef)
 ## get the intercept 
 iIntercept = mCoef[,1]
 mCoef = mCoef[,-1]
-colnames(mCoef) = colnames(lStanData$X)[2:ncol(lStanData$X)]
+colnames(mCoef) = colnames(lStanData$X)#[2:ncol(lStanData$X)]
 
 ## function to calculate statistics for a coefficient
 getDifference = function(ivData){
@@ -529,7 +562,7 @@ mChecks
 yresp = density(ivResp)
 plot(yresp, xlab='', main='Fitted distribution', ylab='density', lwd=2)
 hist(ivResp, prob=T, add=T)
-temp = apply(mDraws.t, 2, function(x) {x = density(x)
+temp = apply(mDraws, 2, function(x) {x = density(x)
 #x$y = x$y/max(x$y)
 lines(x, col='red', lwd=0.6)
 })
