@@ -20,7 +20,7 @@ q = paste0('select MetaFile.* from MetaFile
 dfSample = dbGetQuery(db, q)
 dfSample
 n = paste0(dfSample$location, dfSample$name)
-df = read.csv(n, header=T)
+df = read.csv(n[1], header=T)
 
 # close connection after getting data
 dbDisconnect(db)
@@ -102,13 +102,70 @@ xyplot(y ~ log(values+0.5) | ind, data=df, type=c('g', 'p', 'r'), pch=19, cex=0.
        index.cond = function(x,y) coef(lm(y ~ x))[1], #aspect='xy',# layout=c(8,2),
        par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'))
 
+xyplot(y ~ values | ind, data=df, type=c('g', 'p', 'smooth'), pch=19, cex=0.6,
+       #index.cond = function(x,y) coef(lm(y ~ x))[1], #aspect='xy',# layout=c(8,2),
+       par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'))
+
+xyplot(y ~ log(values+0.5) | ind, data=df, type=c('g', 'p', 'smooth'), pch=19, cex=0.6,
+       #index.cond = function(x,y) coef(lm(y ~ x))[1], #aspect='xy',# layout=c(8,2),
+       par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'))
+
+
 xyplot(y ~ log(values+0.5) | ind, data=df, type=c('smooth'), pch=19, cex=0.6,
        par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'))
 
 xyplot(y ~ values | ind, data=df, type=c('smooth'), pch=19, cex=0.6,
        par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'))
 
-## transformation of the covariates
+##### transformation of the covariates
+tapply(df$values, df$ind, function(x) quantile(x, 0:10/10))
+data.frame(colnames(dfData))
+dfData = dfData[,-c(9, 10)]
+# transform certain values, before log transformation
+dfData$Peanut.Sp.Act[dfData$Peanut.Sp.Act < 1] = 1e-4 
+dfData$Peanut.Sp.Act = log(dfData$Peanut.Sp.Act)
+dfData$Peanut.Sp.Act[dfData$Peanut.Sp.Act < 0] = 0
+
+dfData$Ara.h.2.Sp.Act[dfData$Ara.h.2.Sp.Act < 1] = 1e-4 
+dfData$Ara.h.2.Sp.Act = log(dfData$Ara.h.2.Sp.Act)
+dfData$Ara.h.2.Sp.Act[dfData$Ara.h.2.Sp.Act < 0] = 0 
+
+dfData$Ara.h.6.Sp.Act[dfData$Ara.h.6.Sp.Act < 1] = 1e-4 
+dfData$Ara.h.6.Sp.Act = log(dfData$Ara.h.6.Sp.Act)
+dfData$Ara.h.6.Sp.Act[dfData$Ara.h.6.Sp.Act < 0] = 0
+
+dfData$f423.Ara.h.2[dfData$f423.Ara.h.2 < 1] = 1e-4
+dfData$f423.Ara.h.2 = log(dfData$f423.Ara.h.2)
+dfData$f423.Ara.h.2[dfData$f423.Ara.h.2 < 0] = 0
+
+dfData$f424.rAra.h.3[dfData$f424.rAra.h.3 < 1] = 1e-4
+dfData$f424.rAra.h.3 = log(dfData$f424.rAra.h.3)
+dfData$f424.rAra.h.3[dfData$f424.rAra.h.3 < 0] = 0
+
+dfData$f423.nAra.H.6[dfData$f423.nAra.H.6 < 1] = 1e-4
+dfData$f423.nAra.H.6 = log(dfData$f423.nAra.H.6)
+dfData$f423.nAra.H.6[dfData$f423.nAra.H.6 < 0] = 0
+
+dfData$f13.Peanut[dfData$f13.Peanut < 1] = 1e-4
+dfData$f13.Peanut = log(dfData$f13.Peanut)
+dfData$f13.Peanut[dfData$f13.Peanut < 0] = 0
+
+dfData$f422.rAra.h.1[dfData$f422.rAra.h.1 < 1] = 1e-4
+dfData$f422.rAra.h.1 = log(dfData$f422.rAra.h.1)
+dfData$f422.rAra.h.1[dfData$f422.rAra.h.1 < 0] = 0
+
+dfData$total.IgE = log(dfData$total.IgE)
+
+df = stack(dfData[,-c(14)])
+df$y = dfData$CD63.Act
+
+xyplot(y ~ values | ind, data=df, type=c('g', 'p', 'smooth'), pch=19, cex=0.6,
+       #index.cond = function(x,y) coef(lm(y ~ x))[1], #aspect='xy',# layout=c(8,2),
+       par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'))
+
+xyplot(y ~ values | ind, data=df, type=c('smooth'), pch=19, cex=0.6,
+       par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'))
+
 # fit.1 = lm(CD63.Act ~ Peanut.Sp.Act, data=dfData)
 # fit.2 = lm(CD63.Act ~ log(Peanut.Sp.Act), data=dfData)
 # summary(fit.1)
@@ -239,6 +296,35 @@ s2 = cbind(extract(fit.stan.2)$betas, extract(fit.stan.2)$sigmaPop, extract(fit.
 colnames(s2) = c(colnames(lStanData$X), 'sigmaPop', 'sigmaRan')
 pairs(s2, pch=20)
 
+### partial pooling of batches of coefficients
+stanDso.2 = rstan::stan_model(file='tResponseRegression_partialPoolingBatches.stan')
+
+m = model.matrix(CD63.Act ~ ., data=dfData)
+
+lStanData = list(Ntotal=nrow(dfData), Ncol=ncol(m), X=m,
+                 NBatchMap = c(1, 2, rep(3, times=9), 4, 4), NscaleBatches=4,
+                 y=dfData$CD63.Act)
+
+fit.stan.2 = sampling(stanDso.2, data=lStanData, iter=5000, chains=4, pars=c('betas', 'mu', 'sigmaPop', 'nu', 'sigmaRan'),
+                      cores=4)
+print(fit.stan.2, c('betas', 'sigmaPop', 'sigmaRan', 'nu'), digits=3)
+
+traceplot(fit.stan.2, c('sigmaRan'))
+traceplot(fit.stan.2, c('betas'))
+# some diagnostics for stan
+pairs(fit.stan.2, pars = c("sigmaPop", "sigmaRan", 'betas[1]', 'nu', "lp__"))
+#pairs(fit.stan.2, pars = c("betas", "lp__"))
+
+m = extract(fit.stan.2, 'betas')
+betas.2 = colMeans(m$betas)
+names(betas.2) = colnames(lStanData$X)
+# compare with lm 
+data.frame(coef(fit.1), betas, betas.2)
+
+s2 = cbind(extract(fit.stan.2)$betas)
+colnames(s2) = c(colnames(lStanData$X))
+pairs(s2, pch=20)
+
 ###########################################################
 ###### 2 component finite mixture model
 ###########################################################
@@ -310,12 +396,12 @@ data.frame(coef(fit.1), betas, betas.2, c(NA, betas.3))
 ##### Plot Coefficients
 ###########################################################
 ## get the coefficient of interest
-mCoef = extract(fit.stan.3)$betas
+mCoef = extract(fit.stan)$betas
 dim(mCoef)
 ## get the intercept 
 iIntercept = mCoef[,1]
 mCoef = mCoef[,-1]
-colnames(mCoef) = colnames(lStanData$X)#[2:ncol(lStanData$X)]
+colnames(mCoef) = colnames(lStanData$X)[2:ncol(lStanData$X)]
 
 ## function to calculate statistics for a coefficient
 getDifference = function(ivData){
@@ -384,7 +470,10 @@ lines(lowess(fitted, iResid), col=2, lwd=2)
 ## calculate standardized residuals
 ## these are useful to detect non-normality
 ## see equation 14.7 in Gelman 2013
-s = mean(extract(fit.stan.2)$nu)
+## for t-distribution it is sqrt((scale^2)*(nu/(nu-2)))
+s = mean(extract(fit.stan.2)$sigmaPop)
+nu = mean(extract(fit.stan.2)$nu)
+s = sqrt((s^2)*(nu/(nu-2)))
 plot(fitted, iResid/s, pch=20, cex=0.5, main='standardized residuals')
 lines(lowess(fitted, iResid/s), col=2, lwd=2)
 
@@ -559,6 +648,7 @@ mChecks['Median', 'student'] = getPValue(t1, T1_median(ivResp))
 mChecks
 
 ## plots of densities
+par(p.old)
 yresp = density(ivResp)
 plot(yresp, xlab='', main='Fitted distribution', ylab='density', lwd=2)
 hist(ivResp, prob=T, add=T)
