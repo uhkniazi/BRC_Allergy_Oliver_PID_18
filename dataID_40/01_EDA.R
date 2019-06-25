@@ -241,20 +241,26 @@ apply(s1, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
 lines(density(dfData$CD63.Act), col=2)
 
 #################### use stan to generate MCMC sample
+## censor the response variable to a lower bound of 0.01
+dfData$CD63.Act[dfData$CD63.Act < 0.01] = 0.01
+
 library(rstan)
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
-stanDso = rstan::stan_model(file='tResponseRegression.stan')
+stanDso = rstan::stan_model(file='tResponseRegression_censored.stan')
 
-m = model.matrix(CD63.Act ~ ., data=dfData)
+m = model.matrix(CD63.Act ~ ., data=dfData[dfData$CD63.Act > 0.01,])
+m2 = model.matrix(CD63.Act ~ ., data=dfData[dfData$CD63.Act <= 0.01,])
 
-lStanData = list(Ntotal=nrow(dfData), Ncol=ncol(m), X=m,
-                 y=dfData$CD63.Act)
+lStanData = list(Ntotal=nrow(dfData[dfData$CD63.Act > 0.01,]), Ncol=ncol(m), X=m, rLower=0.01,
+                 X2 = m2,
+                 Ncens = nrow(m2),
+                 y=dfData$CD63.Act[dfData$CD63.Act > 0.01])
 
-fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=2, pars=c('betas', 'mu', 'sigmaPop', 'nu'),
+fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=2, pars=c('betas', 'mu', 'y_cens', 'mu2', 'sigmaPop', 'nu'),
                     cores=2)
 print(fit.stan, c('betas', 'sigmaPop', 'nu'), digits=3)
-
+print(fit.stan, c('mu', 'mu2'))
 # some diagnostics for stan
 traceplot(fit.stan, c('sigmaPop', 'nu'), ncol=1, inc_warmup=F)
 pairs(fit.stan, pars = c("sigmaPop", "nu", "lp__"))
@@ -271,14 +277,14 @@ colnames(s) = c(colnames(lStanData$X), 'sigmaPop')
 pairs(s, pch=20)
 
 ### partial pooling of coefficients
-stanDso.2 = rstan::stan_model(file='tResponseRegression_partialPooling.stan')
+stanDso.2 = rstan::stan_model(file='tResponseRegression_partialPooling_truncated.stan')
 
 m = model.matrix(CD63.Act ~ ., data=dfData)
 
-lStanData = list(Ntotal=nrow(dfData), Ncol=ncol(m), X=m,
+lStanData = list(Ntotal=nrow(dfData), Ncol=ncol(m), X=m, rLower=0.01,
                  y=dfData$CD63.Act)
 
-fit.stan.2 = sampling(stanDso.2, data=lStanData, iter=1000, chains=2, pars=c('betas', 'mu', 'sigmaPop', 'nu', 'sigmaRan'),
+fit.stan.2 = sampling(stanDso.2, data=lStanData, iter=5000, chains=2, pars=c('betas', 'mu', 'sigmaPop', 'nu', 'sigmaRan'),
                     cores=2)
 print(fit.stan.2, c('betas', 'sigmaPop', 'sigmaRan', 'nu'), digits=3)
 
@@ -297,18 +303,22 @@ colnames(s2) = c(colnames(lStanData$X), 'sigmaPop', 'sigmaRan')
 pairs(s2, pch=20)
 
 ### partial pooling of batches of coefficients
-stanDso.2 = rstan::stan_model(file='tResponseRegression_partialPoolingBatches.stan')
+stanDso.2 = rstan::stan_model(file='tResponseRegression_partialPoolingBatches_censored.stan')
 
-m = model.matrix(CD63.Act ~ ., data=dfData)
+m = model.matrix(CD63.Act ~ ., data=dfData[dfData$CD63.Act > 0.01,])
+m2 = model.matrix(CD63.Act ~ ., data=dfData[dfData$CD63.Act <= 0.01,])
 
-lStanData = list(Ntotal=nrow(dfData), Ncol=ncol(m), X=m,
+lStanData = list(Ntotal=nrow(dfData[dfData$CD63.Act > 0.01,]), Ncol=ncol(m), X=m, rLower=0.01,
+                 X2 = m2,
+                 Ncens = nrow(m2),
                  NBatchMap = c(1, 2, rep(3, times=9), 4, 4), NscaleBatches=4,
-                 y=dfData$CD63.Act)
+                 y=dfData$CD63.Act[dfData$CD63.Act > 0.01])
 
-fit.stan.2 = sampling(stanDso.2, data=lStanData, iter=5000, chains=4, pars=c('betas', 'mu', 'sigmaPop', 'nu', 'sigmaRan'),
+fit.stan.2 = sampling(stanDso.2, data=lStanData, iter=5000, chains=4, pars=c('betas', 'mu', 'y_cens', 'mu2', 'sigmaPop', 'nu', 'sigmaRan'),
                       cores=4)
 print(fit.stan.2, c('betas', 'sigmaPop', 'sigmaRan', 'nu'), digits=3)
-
+print(fit.stan.2, c('y_cens'))
+print(fit.stan.2, c('mu', 'mu2'))
 traceplot(fit.stan.2, c('sigmaRan'))
 traceplot(fit.stan.2, c('betas'))
 # some diagnostics for stan
@@ -396,7 +406,7 @@ data.frame(coef(fit.1), betas, betas.2, c(NA, betas.3))
 ##### Plot Coefficients
 ###########################################################
 ## get the coefficient of interest
-mCoef = extract(fit.stan)$betas
+mCoef = extract(fit.stan.2)$betas
 dim(mCoef)
 ## get the intercept 
 iIntercept = mCoef[,1]
@@ -460,10 +470,10 @@ abline(h = 0, col='grey')
 ###########################################################
 ######## model checks for residuals
 ###########################################################
-mFitted = extract(fit.stan.2)$mu
+mFitted = extract(fit.stan)$mu
 fitted = colMeans(mFitted)
 # get residuals that is response minus fitted values
-iResid = (dfData$CD63.Act - fitted)
+iResid = (dfData$CD63.Act[dfData$CD63.Act > 0.01] - fitted)
 plot(fitted, iResid, pch=20, cex=0.5)
 lines(lowess(fitted, iResid), col=2, lwd=2)
 
@@ -471,8 +481,8 @@ lines(lowess(fitted, iResid), col=2, lwd=2)
 ## these are useful to detect non-normality
 ## see equation 14.7 in Gelman 2013
 ## for t-distribution it is sqrt((scale^2)*(nu/(nu-2)))
-s = mean(extract(fit.stan.2)$sigmaPop)
-nu = mean(extract(fit.stan.2)$nu)
+s = mean(extract(fit.stan)$sigmaPop)
+nu = mean(extract(fit.stan)$nu)
 s = sqrt((s^2)*(nu/(nu-2)))
 plot(fitted, iResid/s, pch=20, cex=0.5, main='standardized residuals')
 lines(lowess(fitted, iResid/s), col=2, lwd=2)
@@ -482,8 +492,8 @@ n = colnames(dfData)
 n = n[-(length(n))]
 par(mfrow=c(2,2))
 sapply(n, function(x){
-  plot(dfData[,x], iResid, main=paste(x))
-  lines(lowess(dfData[,x], iResid), col=2)
+  plot(dfData[dfData$CD63.Act > 0.01 ,x], iResid, main=paste(x))
+  lines(lowess(dfData[dfData$CD63.Act > 0.01,x], iResid), col=2)
 })
 
 ## unequal variances
@@ -610,7 +620,7 @@ l = extract(fit.stan.2)
 names(l)
 
 sigSample = l$sigmaPop
-muSample = l$mu
+muSample = cbind(l$mu, l$mu2)
 nuSample = l$nu
 dim(muSample)
 dim(mDraws)
@@ -624,6 +634,7 @@ for (i in 1:200){
   mThetas[i,] = c(mean(m), median(m), s, n)
 }
 
+mDraws = apply(mDraws, 2, function(x) { x[x < 0.01] = 0.01; return(x)})
 mDraws.t = mDraws
 ## get the p-values for the test statistics
 t1 = apply(mDraws, 2, T1_var)
