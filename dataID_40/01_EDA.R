@@ -349,7 +349,7 @@ lStanData = list(Ntotal=nrow(dfData), Ncol=ncol(m), X=m,
                  #iIntercepts=c(0.7, 40),
                  y=dfData$CD63.Act)
 
-fit.stan.3 = sampling(stanDso.3, data=lStanData, iter=10000, chains=4, pars=c('betas', 'mu', 'muFitted', 'sigmaPop',
+fit.stan.3 = sampling(stanDso.3, data=lStanData, iter=1000, chains=2, pars=c('betas', 'mu', 'muFitted', 'sigmaPop',
                                                                             'iMixWeights'),
                       cores=2, control=list(adapt_delta=0.99, max_treedepth = 12), init=initf)
 print(fit.stan.3, c('betas', 'sigmaPop', 'iMixWeights', 'mu'), digits=3)
