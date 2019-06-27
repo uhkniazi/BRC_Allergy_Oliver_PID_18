@@ -470,19 +470,19 @@ abline(h = 0, col='grey')
 ###########################################################
 ######## model checks for residuals
 ###########################################################
-mFitted = extract(fit.stan)$mu
+mFitted = extract(fit.stan.2)$mu
 fitted = colMeans(mFitted)
 # get residuals that is response minus fitted values
 iResid = (dfData$CD63.Act[dfData$CD63.Act > 0.01] - fitted)
 plot(fitted, iResid, pch=20, cex=0.5)
 lines(lowess(fitted, iResid), col=2, lwd=2)
-
+plot(dfData$CD63.Act[dfData$CD63.Act > 0.01], fitted, pch=20)
 ## calculate standardized residuals
 ## these are useful to detect non-normality
 ## see equation 14.7 in Gelman 2013
 ## for t-distribution it is sqrt((scale^2)*(nu/(nu-2)))
-s = mean(extract(fit.stan)$sigmaPop)
-nu = mean(extract(fit.stan)$nu)
+s = mean(extract(fit.stan.2)$sigmaPop)
+nu = mean(extract(fit.stan.2)$nu)
 s = sqrt((s^2)*(nu/(nu-2)))
 plot(fitted, iResid/s, pch=20, cex=0.5, main='standardized residuals')
 lines(lowess(fitted, iResid/s), col=2, lwd=2)
@@ -492,66 +492,163 @@ n = colnames(dfData)
 n = n[-(length(n))]
 par(mfrow=c(2,2))
 sapply(n, function(x){
-  plot(dfData[dfData$CD63.Act > 0.01 ,x], iResid, main=paste(x))
-  lines(lowess(dfData[dfData$CD63.Act > 0.01,x], iResid), col=2)
+  plot(dfData[dfData$CD63.Act > 0.01 ,x], iResid/s, main=paste(x))
+  lines(lowess(dfData[dfData$CD63.Act > 0.01,x], iResid/s), col=2)
 })
 
 ## unequal variances
 sapply(n, function(x){
-  plot(dfData[,x], abs(iResid), main=paste(x))
-  lines(lowess(dfData[,x], abs(iResid)), col=2)
+  plot(dfData[dfData$CD63.Act > 0.01,x], abs(iResid), main=paste(x))
+  lines(lowess(dfData[dfData$CD63.Act > 0.01,x], abs(iResid)), col=2)
 })
 
 ### generate some posterior predictive data
+## generate random samples from alternative t-distribution parameterization
+## see https://grollchristian.wordpress.com/2013/04/30/students-t-location-scale/
+rt_ls <- function(n, df, mu, a) rt(n,df)*a + mu
 ## follow the algorithm in section 14.3 page 363 in Gelman 2013
-simulateOne = function(betas, sigma, mModMatrix, groupMap){
+simulateOne = function(betas, sigma, nu, mModMatrix){
   f = mModMatrix %*% betas
-  yrep = rnorm(length(f), f, sigma[groupMap])
+  yrep = rt_ls(length(f), nu, f,  sigma)
+  # censor the values below detection limit
+  yrep[yrep <= 0.01] = 0.01
   return(yrep)
 }
 
-runRegression = function(yrep, lStanData){
-  lStanData$y = yrep
-  f.s = sampling(stanDso, data=lStanData, iter=1000, chains=2, pars=c('betas', 'mu', 'sigmaPop'),
-                 cores=2)
-  return(f.s)
+runRegression = function(yrep, mModMatrix){
+  f = which(yrep <= 0.01)
+  m = mModMatrix[-f,]
+  m2 = mModMatrix[f,]
+  
+  lStanData = list(Ntotal=nrow(m), Ncol=ncol(m), X=m, rLower=0.01,
+                   X2 = m2,
+                   Ncens = nrow(m2),
+                   NBatchMap = c(1, 2, rep(3, times=9), 4, 4), NscaleBatches=4,
+                   y=yrep[-f])
+  f.s = sampling(stanDso.2, data=lStanData, iter=1000, chains=2, pars=c('betas', 'mu', 'nu', 'sigmaPop'),
+                        cores=2)
+  iFitted = colMeans(extract(f.s)$mu)
+  nu = mean(extract(f.s)$nu)
+  sig = mean(extract(f.s)$sigmaPop)
+  sig = sqrt((sig^2)*(nu/(nu-2)))
+  res = yrep[-f] - iFitted
+  return(list(stan=f.s, res=res, res.sd=res/sig, sig=sig, yrep=yrep))
 }
 
-# returns residuals
-getResiduals = function(fit.object, mModMatrix, yrep){
-  b = colMeans(extract(fit.object)$betas)
-  f = mModMatrix %*% b
-  r = (yrep - f)
-  return(r)
-}
+### test functions
+# l = extract(fit.stan.2)
+# names(l)
+# s = simulateOne(colMeans(l$betas), 
+#                 mean(l$sigmaPop),
+#                 mean(l$nu),
+#                 model.matrix(CD63.Act ~ ., data=dfData))
+# 
+# r = runRegression(s, model.matrix(CD63.Act ~ ., data=dfData))
 
-
+### test works, continue with simulation
 ## sample n values, 1000 times
-mDraws.sim = matrix(NA, nrow = nrow(dfData), ncol=1000)
-mDraws.fitted = matrix(NA, nrow = nrow(dfData), ncol=1000)
-mDraws.res = matrix(NA, nrow = nrow(dfData), ncol=1000)
-dim(mStan)
-for (i in 1:1000){
-  p = sample(1:nrow(mStan), 1)
-  sigma = mStan[p,5:6]
-  betas = mStan[p, 1:4]
-  mDraws.sim[,i] = simulateOne(betas, sigma, lStanData$X, as.numeric(dfData$treatment))
-  f.s = runRegression(mDraws.sim[,i], lStanData)
-  mDraws.fitted[,i] = apply(extract(f.s)$mu, 2, mean)
-  mDraws.res[,i] = getResiduals(f.s, lStanData$X,
-                                mDraws.sim[,i])
+mDraws.sim = matrix(NA, nrow = nrow(dfData), ncol=100)
+lSims = vector(mode = 'list', length = 100)
+l = extract(fit.stan.2)
+for (i in 1:100){
+  p = sample(1:nrow(l$betas), 1)
+  mDraws.sim[,i] = simulateOne(l$betas[p,], 
+                  l$sigmaPop[p],
+                  l$nu[p],
+                  model.matrix(CD63.Act ~ ., data=dfData))
+  
+  lSims[[i]] = runRegression(mDraws.sim[,i], model.matrix(CD63.Act ~ ., data=dfData))
 }
+
+hist(dfData$CD63.Act, prob=T)
+plot(density(dfData$CD63.Act))
+apply(mDraws.sim, 2, function(x) lines(density(x)))
+
+iResLimit = ceiling(abs(s * 3))
+
+## proportion of absolute value residuals that exceed limit iResLimit
+T1_proportion = function(Y) {
+  return(sum(abs(Y) > iResLimit)/length(Y))
+}
+
+iOutliers = sapply(lSims, function(x){
+  return(T1_proportion(x$res))
+})
+
+iObserved = T1_proportion(iResid)
+hist(iOutliers)
+points(iObserved, 0, col=2)
+
+## calculate bayesian p-value for a test statistic
+getPValue = function(Trep, Tobs){
+  left = sum(Trep <= Tobs)/length(Trep)
+  right = sum(Trep >= Tobs)/length(Trep)
+  return(min(left, right))
+}
+
+## define some test quantities to measure the lack of fit
+## define a test quantity T(y, theta)
+## variance
+T1_var = function(Y) return(var(Y))
+
+## min quantity
+T1_min = function(Y){
+  return(min(Y))
+} 
+
+## max quantity
+T1_max = function(Y){
+  return(max(Y))
+} 
+
+## mean quantity
+T1_mean = function(Y){
+  return(mean(Y))
+} 
+
+## median quantity
+T1_median = function(Y){
+  return(median(Y))
+} 
+
+
+getPValue(na.omit(iOutliers), iObserved)
+
+## get the p-values for the test statistics
+t1 = apply(mDraws.sim, 2, T1_var)
+getPValue(t1, var(dfData$CD63.Act))
+
+## testing for outlier detection
+t1 = apply(mDraws.sim, 2, T1_min)
+getPValue(t1, T1_min(dfData$CD63.Act))
+
+## maximum value
+t1 = apply(mDraws.sim, 2, T1_max)
+getPValue(t1, T1_max(dfData$CD63.Act))
+
+## mean value
+t1 = apply(mDraws.sim, 2, T1_mean)
+getPValue(t1, T1_mean(dfData$CD63.Act))
+
+## median value
+t1 = apply(mDraws.sim, 2, T1_median)
+getPValue(t1, T1_median(dfData$CD63.Act))
+
 
 ### visual checks
-ivResp = dfData$response
+ivResp = dfData$CD63.Act
 yresp = density(ivResp)
 plot(yresp, xlab='', main='Fitted distribution', ylab='density', lwd=2)#, ylim=c(0, 1))
-hist(ivResp, prob=T, main='Original Data with simulated data', xlab='Response Variable')
+hist(ivResp, prob=T, main='Original Data with simulated data', xlab='Response Variable', add=T)
 temp = apply(mDraws.sim, 2, function(x) {x = density(x)
 #x$y = x$y/max(x$y)
 lines(x, col='lightgrey', lwd=0.6)
 })
 lines(yresp)
+
+lSims = lapply(lSims, function(x) {x$stan = NULL
+  return(x)
+  })
 
 ### plot the residuals
 plot(dfData$response, iResid, pch=c(2,20)[as.numeric(dfData$treatment)], cex=0.5, main='MCMC')
