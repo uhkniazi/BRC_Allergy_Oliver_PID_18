@@ -92,7 +92,7 @@ dbDisconnect(db)
 
 ################# preliminary model fitting
 dfData.bk = dfData
-dfData = dfData[dfData$Allergic.Status == 'PA',]
+dfData = dfData[dfData$Allergic.Status == 'PS',]
 dfData = dfData[,-c(1,2)]
 
 df = stack(dfData[,-c(16)])
@@ -242,7 +242,7 @@ lines(density(dfData$CD63.Act), col=2)
 
 #################### use stan to generate MCMC sample
 ## censor the response variable to a lower bound of 0.01
-dfData$CD63.Act[dfData$CD63.Act < 0.01] = 0.01
+dfData$CD63.Act[dfData$CD63.Act <= 0] = 0.01
 
 library(rstan)
 rstan_options(auto_write = TRUE)
@@ -261,6 +261,7 @@ fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=2, pars=c('betas'
                     cores=2)
 print(fit.stan, c('betas', 'sigmaPop', 'nu'), digits=3)
 print(fit.stan, c('mu', 'mu2'))
+print(fit.stan, c('y_cens'))
 # some diagnostics for stan
 traceplot(fit.stan, c('sigmaPop', 'nu'), ncol=1, inc_warmup=F)
 pairs(fit.stan, pars = c("sigmaPop", "nu", "lp__"))
@@ -276,31 +277,31 @@ s = cbind(extract(fit.stan)$betas, extract(fit.stan)$sigmaPop)
 colnames(s) = c(colnames(lStanData$X), 'sigmaPop')
 pairs(s, pch=20)
 
-### partial pooling of coefficients
-stanDso.2 = rstan::stan_model(file='tResponseRegression_partialPooling_truncated.stan')
-
-m = model.matrix(CD63.Act ~ ., data=dfData)
-
-lStanData = list(Ntotal=nrow(dfData), Ncol=ncol(m), X=m, rLower=0.01,
-                 y=dfData$CD63.Act)
-
-fit.stan.2 = sampling(stanDso.2, data=lStanData, iter=5000, chains=2, pars=c('betas', 'mu', 'sigmaPop', 'nu', 'sigmaRan'),
-                    cores=2)
-print(fit.stan.2, c('betas', 'sigmaPop', 'sigmaRan', 'nu'), digits=3)
-
-# some diagnostics for stan
-pairs(fit.stan.2, pars = c("sigmaPop", "sigmaRan", 'betas[1]', 'nu', "lp__"))
-pairs(fit.stan.2, pars = c("betas", "lp__"))
-
-m = extract(fit.stan.2, 'betas')
-betas.2 = colMeans(m$betas)
-names(betas.2) = colnames(lStanData$X)
-# compare with lm 
-data.frame(coef(fit.1), betas, betas.2)
-
-s2 = cbind(extract(fit.stan.2)$betas, extract(fit.stan.2)$sigmaPop, extract(fit.stan.2)$sigmaRan)
-colnames(s2) = c(colnames(lStanData$X), 'sigmaPop', 'sigmaRan')
-pairs(s2, pch=20)
+# ### partial pooling of coefficients
+# stanDso.2 = rstan::stan_model(file='tResponseRegression_partialPooling_truncated.stan')
+# 
+# m = model.matrix(CD63.Act ~ ., data=dfData)
+# 
+# lStanData = list(Ntotal=nrow(dfData), Ncol=ncol(m), X=m, rLower=0.01,
+#                  y=dfData$CD63.Act)
+# 
+# fit.stan.2 = sampling(stanDso.2, data=lStanData, iter=5000, chains=2, pars=c('betas', 'mu', 'sigmaPop', 'nu', 'sigmaRan'),
+#                     cores=2)
+# print(fit.stan.2, c('betas', 'sigmaPop', 'sigmaRan', 'nu'), digits=3)
+# 
+# # some diagnostics for stan
+# pairs(fit.stan.2, pars = c("sigmaPop", "sigmaRan", 'betas[1]', 'nu', "lp__"))
+# pairs(fit.stan.2, pars = c("betas", "lp__"))
+# 
+# m = extract(fit.stan.2, 'betas')
+# betas.2 = colMeans(m$betas)
+# names(betas.2) = colnames(lStanData$X)
+# # compare with lm 
+# data.frame(coef(fit.1), betas, betas.2)
+# 
+# s2 = cbind(extract(fit.stan.2)$betas, extract(fit.stan.2)$sigmaPop, extract(fit.stan.2)$sigmaRan)
+# colnames(s2) = c(colnames(lStanData$X), 'sigmaPop', 'sigmaRan')
+# pairs(s2, pch=20)
 
 ### partial pooling of batches of coefficients
 stanDso.2 = rstan::stan_model(file='tResponseRegression_partialPoolingBatches_censored.stan')
@@ -650,6 +651,8 @@ lSims = lapply(lSims, function(x) {x$stan = NULL
   return(x)
   })
 
+save(lSims, file='temp/lSims.ps.rds')
+save(mDraws.sim, file='temp/mDraws.sim.ps.rds')
 ### plot the residuals
 plot(dfData$response, iResid, pch=c(2,20)[as.numeric(dfData$treatment)], cex=0.5, main='MCMC')
 lines(lowess(dfData$response, iResid))
