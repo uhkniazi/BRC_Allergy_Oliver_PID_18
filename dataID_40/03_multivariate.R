@@ -1,6 +1,6 @@
-# File: 02_mechanistic.R
+# File: 03_multivariate.R
 # Auth: umar.niazi@kcl.ac.uk
-# DESC: mechanistic analysis of the formatted data set after EDA
+# DESC: multivariate analysis of the formatted data set after EDA
 # Date: 2/07/2019
 
 source('header.R')
