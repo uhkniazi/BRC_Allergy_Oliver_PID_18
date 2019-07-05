@@ -183,66 +183,36 @@ dfData.ps$CD63.Act[dfData.ps$CD63.Act <= 0] = 0.01
 library(rstan)
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
-# stanDso = rstan::stan_model(file='tResponseRegression_censored.stan')
-# 
-# m = model.matrix(CD63.Act ~ ., data=dfData.ps[dfData.ps$CD63.Act > 0.01, -1])
-# m2 = model.matrix(CD63.Act ~ ., data=dfData.ps[dfData.ps$CD63.Act <= 0.01, -1])
-# 
-# lStanData = list(Ntotal=nrow(m), Ncol=ncol(m), X=m, rLower=0.01,
-#                  X2 = m2,
-#                  Ncens = nrow(m2),
-#                  y=dfData.ps$CD63.Act[dfData.ps$CD63.Act > 0.01])
-# 
-# fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=2, pars=c('betas', 'mu', 'y_cens', 'mu2', 'sigmaPop', 'nu'),
-#                     cores=2)
-# print(fit.stan, c('betas', 'sigmaPop', 'nu'), digits=3)
-# print(fit.stan.1.pa, c('mu', 'mu2'))
-# print(fit.stan.1.pa, c('y_cens'))
-# # some diagnostics for stan
-# traceplot(fit.stan, c('sigmaPop', 'nu'), ncol=1, inc_warmup=F)
-# 
-# m = extract(fit.stan, 'betas')
-# betas = colMeans(m$betas)
-# names(betas) = colnames(lStanData$X)
-# # compare with lm 
-# data.frame(coef(fit.1.ps), betas)
-# 
-# s = cbind(extract(fit.stan)$betas, extract(fit.stan)$sigmaPop)
-# colnames(s) = c(colnames(lStanData$X), 'sigmaPop')
-# pairs(s, pch=20)
+stanDso = rstan::stan_model(file='tResponseRegression_censored.stan')
 
-### partial pooling of batches of coefficients
-stanDso.2 = rstan::stan_model(file='tResponseRegression_partialPoolingBatches_censored.stan')
-
+cVar = 'Age'
 ## model dataset PA
-m = model.matrix(CD63.Act ~ ., data=dfData.pa[dfData.pa$CD63.Act > 0.01, -1])
-m2 = model.matrix(CD63.Act ~ ., data=dfData.pa[dfData.pa$CD63.Act <= 0.01, -1])
+m = model.matrix(CD63.Act ~ Age, data=dfData.pa[dfData.pa$CD63.Act > 0.01, -1])
+m2 = model.matrix(CD63.Act ~ Age, data=dfData.pa[dfData.pa$CD63.Act <= 0.01, -1])
 
 lStanData = list(Ntotal=nrow(m), Ncol=ncol(m), X=m, rLower=0.01,
                  X2 = m2,
                  Ncens = nrow(m2),
-                 NBatchMap = c(1, 2, rep(3, times=9), 4, 4), NscaleBatches=4,
                  y=dfData.pa$CD63.Act[dfData.pa$CD63.Act > 0.01])
 
-fit.stan.pa = sampling(stanDso.2, data=lStanData, iter=5000, chains=4, pars=c('betas', 'mu', 'y_cens', 'mu2', 'sigmaPop', 'nu', 'sigmaRan'),
-                      cores=4, control=list(adapt_delta=0.99, max_treedepth = 10))
+fit.stan.pa = sampling(stanDso, data=lStanData, iter=2000, chains=2, pars=c('betas', 'mu', 'y_cens', 'mu2', 'sigmaPop', 'nu'),
+                      cores=2)
 
 ## model dataset PS
-m = model.matrix(CD63.Act ~ ., data=dfData.ps[dfData.ps$CD63.Act > 0.01, -1])
-m2 = model.matrix(CD63.Act ~ ., data=dfData.ps[dfData.ps$CD63.Act <= 0.01, -1])
+m = model.matrix(CD63.Act ~ Age, data=dfData.ps[dfData.ps$CD63.Act > 0.01, -1])
+m2 = model.matrix(CD63.Act ~ Age, data=dfData.ps[dfData.ps$CD63.Act <= 0.01, -1])
 
 lStanData = list(Ntotal=nrow(m), Ncol=ncol(m), X=m, rLower=0.01,
                  X2 = m2,
                  Ncens = nrow(m2),
-                 NBatchMap = c(1, 2, rep(3, times=9), 4, 4), NscaleBatches=4,
                  y=dfData.ps$CD63.Act[dfData.ps$CD63.Act > 0.01])
 
-fit.stan.ps = sampling(stanDso.2, data=lStanData, iter=5000, chains=4, pars=c('betas', 'mu', 'y_cens', 'mu2', 'sigmaPop', 'nu', 'sigmaRan'),
-                       cores=4, control=list(adapt_delta=0.99, max_treedepth = 10))
+fit.stan.ps = sampling(stanDso, data=lStanData, iter=2000, chains=2, pars=c('betas', 'mu', 'y_cens', 'mu2', 'sigmaPop', 'nu'),
+                       cores=2)
 
 ################# model checks
-print(fit.stan.pa, c('betas', 'sigmaPop', 'sigmaRan', 'nu'), digits=3)
-print(fit.stan.ps, c('betas', 'sigmaPop', 'sigmaRan', 'nu'), digits=3)
+print(fit.stan.pa, c('betas', 'sigmaPop', 'nu'), digits=3)
+print(fit.stan.ps, c('betas', 'sigmaPop', 'nu'), digits=3)
 
 traceplot(fit.stan.pa, c('betas'))
 traceplot(fit.stan.ps, c('betas'))
@@ -273,8 +243,8 @@ mCoef = extract(fit.stan.pa)$betas
 dim(mCoef)
 ## get the intercept 
 iIntercept = mCoef[,1]
-mCoef = mCoef[,-1]
-colnames(mCoef) = colnames(lStanData$X)[2:ncol(lStanData$X)]
+iCoef = mCoef[,-1]
+names(iCoef) = colnames(lStanData$X)[2:ncol(lStanData$X)]
 
 ## function to calculate statistics for a coefficient
 getDifference = function(ivData){
