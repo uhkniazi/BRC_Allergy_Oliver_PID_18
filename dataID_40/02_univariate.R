@@ -131,12 +131,12 @@ df$treatment = dfData$Allergic.Status
 
 densityplot(~ values | ind, data=df, groups=treatment, auto.key=T, scales=list(relation='free'))
 
-xyplot(y ~ values | ind, data=df[df$values > 0,], type=c('g', 'p', 'smooth'), pch=19, cex=0.6, groups=treatment,
+xyplot(y ~ values | ind, data=df[df$y > 0,], type=c('g', 'p', 'smooth'), pch=19, cex=0.6, groups=treatment,
        #index.cond = function(x,y) coef(lm(y ~ x))[1], #aspect='xy',# layout=c(8,2),
        par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'),
        ylab='%CD63 Activation', auto.key=list(columns=2))
 
-xyplot(y ~ values | ind, data=df[df$values > 0,], type=c('g', 'p', 'r'), pch=19, cex=0.6, groups=treatment,
+xyplot(y ~ values | ind, data=df[df$y > 0,], type=c('g', 'p', 'r'), pch=19, cex=0.6, groups=treatment,
        #index.cond = function(x,y) coef(lm(y ~ x))[1], #aspect='xy',# layout=c(8,2),
        par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'),
        ylab='%CD63 Activation', auto.key=list(columns=2))
@@ -153,26 +153,28 @@ for (i in seq_along(cn)){
   hist2(x[f == 'PA'], x[f=='PS'], main=cn[i], legends=c('PA', 'PS'))
 }
 
-## center the variables before modelling
+# ## center the variables before modelling
 cn = cn[-(length(cn))]
 dfData.ps = dfData[dfData$Allergic.Status == 'PS', ]
 dfData.pa = dfData[dfData$Allergic.Status == 'PA', ]
-for (i in seq_along(cn)){
-  x = dfData.pa[,cn[i]]
-  dfData.pa[,cn[i]] = x - mean(x)
-}
+# for (i in seq_along(cn)){
+#   x = dfData.pa[,cn[i]]
+#   dfData.pa[,cn[i]] = x - mean(x)
+# }
+# 
+# for (i in seq_along(cn)){
+#   x = dfData.ps[,cn[i]]
+#   dfData.ps[,cn[i]] = x - mean(x)
+# }
 
-for (i in seq_along(cn)){
-  x = dfData.ps[,cn[i]]
-  dfData.ps[,cn[i]] = x - mean(x)
-}
 
-
+## choose the variable to model
+cVar = 'Peanut.Shannon'
 ##### fit a lm
-fit.1.pa = lm(CD63.Act ~ ., data=dfData.pa[, -1])
+fit.1.pa = lm(CD63.Act ~ ., data=dfData.pa[, c(cVar, 'CD63.Act')])
 summary(fit.1.pa)
 
-fit.1.ps = lm(CD63.Act ~ ., data=dfData.ps[, -1])
+fit.1.ps = lm(CD63.Act ~ ., data=dfData.ps[, c(cVar, 'CD63.Act')])
 summary(fit.1.ps)
 
 #################### use stan to generate MCMC sample
@@ -185,10 +187,10 @@ rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 stanDso = rstan::stan_model(file='tResponseRegression_censored.stan')
 
-cVar = 'Age'
+
 ## model dataset PA
-m = model.matrix(CD63.Act ~ Age, data=dfData.pa[dfData.pa$CD63.Act > 0.01, -1])
-m2 = model.matrix(CD63.Act ~ Age, data=dfData.pa[dfData.pa$CD63.Act <= 0.01, -1])
+m = model.matrix(CD63.Act ~ ., data=dfData.pa[dfData.pa$CD63.Act > 0.01, c(cVar, 'CD63.Act')])
+m2 = model.matrix(CD63.Act ~ ., data=dfData.pa[dfData.pa$CD63.Act <= 0.01, c(cVar, 'CD63.Act')])
 
 lStanData = list(Ntotal=nrow(m), Ncol=ncol(m), X=m, rLower=0.01,
                  X2 = m2,
@@ -199,8 +201,8 @@ fit.stan.pa = sampling(stanDso, data=lStanData, iter=2000, chains=2, pars=c('bet
                       cores=2)
 
 ## model dataset PS
-m = model.matrix(CD63.Act ~ Age, data=dfData.ps[dfData.ps$CD63.Act > 0.01, -1])
-m2 = model.matrix(CD63.Act ~ Age, data=dfData.ps[dfData.ps$CD63.Act <= 0.01, -1])
+m = model.matrix(CD63.Act ~ ., data=dfData.ps[dfData.ps$CD63.Act > 0.01, c(cVar, 'CD63.Act')])
+m2 = model.matrix(CD63.Act ~ ., data=dfData.ps[dfData.ps$CD63.Act <= 0.01, c(cVar, 'CD63.Act')])
 
 lStanData = list(Ntotal=nrow(m), Ncol=ncol(m), X=m, rLower=0.01,
                  X2 = m2,
@@ -243,8 +245,8 @@ mCoef = extract(fit.stan.pa)$betas
 dim(mCoef)
 ## get the intercept 
 iIntercept = mCoef[,1]
-iCoef = mCoef[,-1]
-names(iCoef) = colnames(lStanData$X)[2:ncol(lStanData$X)]
+mCoef = as.matrix(mCoef[,-1])
+colnames(mCoef) = colnames(lStanData$X)[2:ncol(lStanData$X)]
 
 ## function to calculate statistics for a coefficient
 getDifference = function(ivData){
@@ -257,25 +259,10 @@ getDifference = function(ivData){
   return(p)
 }
 
-ivPval = apply(mCoef, 2, getDifference)
-hist(ivPval)
-plot(colMeans(mCoef), ivPval, pch=19)
-m = colMeans(mCoef)
-#names(m) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
-text(colMeans(mCoef), ivPval, names(m), pos=1)
-m = abs(m)
-m = sort(m, decreasing = T)
-
-par(mar=c(6,3,4,2)+0.1)
-l2 = barplot(m[1:length(m)], 
-             las=2, xaxt='n', col='grey', main='Top Variables', ylab='Absolute Coefficient')
-axis(1, at = l2, labels = names(m)[1:length(m)], tick = F, las=2, cex.axis=0.7 )
+apply(mCoef, 2, getDifference)
 
 ## format for line plots
-m = colMeans(mCoef)
-#names(m) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
-m = sort(m, decreasing = T)
-mTreatment = mCoef[,names(m)]
+mTreatment = mCoef
 
 ## export the coefficients to results file
 av = c(mean(iIntercept), colMeans(mTreatment))
@@ -284,7 +271,7 @@ r = signif(cbind(av, s), 3)
 colnames(r) = c('Coefficient', 'SE')
 rownames(r)[1] = 'Intercept'
 
-write.csv(r, file = 'results/cd63Coef_PA.csv')
+write.csv(r, file = paste0('results/cd63Coef_PA_', cVar, '.csv'))
 
 df.pa = apply(mTreatment, 2, getms)
 x.pa = 1:ncol(mTreatment)
@@ -294,10 +281,10 @@ mCoef = extract(fit.stan.ps)$betas
 dim(mCoef)
 ## get the intercept 
 iIntercept = mCoef[,1]
-mCoef = mCoef[,-1]
+mCoef = as.matrix(mCoef[,-1])
 colnames(mCoef) = colnames(lStanData$X)[2:ncol(lStanData$X)]
 
-mTreatment = mCoef[,names(m)]
+mTreatment = mCoef
 
 ## export the coefficients to results file
 av = c(mean(iIntercept), colMeans(mTreatment))
@@ -306,16 +293,17 @@ r = signif(cbind(av, s), 3)
 colnames(r) = c('Coefficient', 'SE')
 rownames(r)[1] = 'Intercept'
 
-write.csv(r, file = 'results/cd63Coef_PS.csv')
+write.csv(r, file = paste0('results/cd63Coef_PS_', cVar, '.csv'))
 
 df.ps = apply(mTreatment, 2, getms)
-x.ps = (1:ncol(mTreatment))+0.5
+x.ps = (1:ncol(mTreatment))+1
 
 ## line plot
 par(p.old)
-plot(x.pa, df.pa['m',], ylim=c(min(rbind(df.pa, df.ps)), max(rbind(df.pa, df.ps))), pch=20, xlab='', main='Coefficients for each predictor',
-     ylab='Slopes', xaxt='n', xlim=c(0.5, max(x.ps)))
-axis(1, at = x.pa+0.25, labels = colnames(mTreatment), las=2, cex.axis=0.7)
+par(mfrow=c(1,2))
+plot(x.pa, df.pa['m',], ylim=c(min(rbind(df.pa, df.ps)), max(rbind(df.pa, df.ps))), pch=20, xlab='', main='Coefficients for Univariate Analysis',
+     ylab='Slopes', xaxt='n', xlim=c(0.5, max(x.ps)+0.5))
+axis(1, at = x.pa+0.5, labels = colnames(mTreatment), las=2, cex.axis=0.8)
 for(l in 1:ncol(df.pa)){
   lines(x=c(x.pa[l], x.pa[l]), y=df.pa[c(2,3),l], lwd=0.5)
 }
@@ -329,41 +317,26 @@ for(l in 1:ncol(df.ps)){
 }
 legend('bottomleft', c('PA', 'PS'), lty=1, col=c(1,2))
 
-## extract the intercepts
-iIntercept.pa = extract(fit.stan.pa)$betas[,1]
-iIntercept.ps = extract(fit.stan.ps)$betas[,1]
-
-df = apply(cbind(iIntercept.pa, iIntercept.ps), 2, getms)
-x = 1:2
-
-par(p.old)
-plot(x, df['m',], ylim=c(min(df), max(df)), pch=20, xlab='', main='Average %CD63 Activation',
-     ylab='Intercept', xaxt='n')
-axis(1, at = x, labels = c('PA', 'PS'), las=2, cex.axis=1)
-for(l in 1:ncol(df)){
-  lines(x=c(x[l], x[l]), y=df[c(2,3),l], lwd=0.5)
-}
-
 ######## end plot coefficients
 ###########################################################
 
 ###############################################
 #################### plots for slopes
 ###############################################
-cn = colnames(dfData)[-c(1, 15)]
+cn = cVar #colnames(dfData)[-c(1, 15)]
 dfPlot = rbind(dfData.pa, dfData.ps)
 dfPlot = dfPlot[dfPlot$CD63.Act > 0.01,]
 betas.pa = colMeans(extract(fit.stan.pa)$betas)
 betas.ps = colMeans(extract(fit.stan.ps)$betas)
 names(betas.pa) = colnames(lStanData$X)
 names(betas.ps) = colnames(lStanData$X)
-par(mfrow=c(2,2))
+#par(mfrow=c(2,2))
 for (i in seq_along(cn)){
   #r = range(dfPlot[,cn[i]])
   #x = seq(r[1], r[2], length.out = 100)
   #y = betas[1] + betas[cn[i]] * x
-  plot(dfPlot[,cn[i]], dfPlot$CD63.Act, pch=20, xlab=paste(cn[i]), ylab='%CD63 Activation', type='n')
-  #points(dfPlot[dfPlot$Allergic.Status == 'PS',cn[i]], dfPlot$CD63.Act[dfPlot$Allergic.Status == 'PS'], pch=20, col=2)
+  plot(dfPlot[,cn[i]], dfPlot$CD63.Act, pch=20, xlab=paste(cn[i]), ylab='%CD63 Activation', type='p')
+  points(dfPlot[dfPlot$Allergic.Status == 'PS',cn[i]], dfPlot$CD63.Act[dfPlot$Allergic.Status == 'PS'], pch=20, col=2)
   abline(betas.pa[1], betas.pa[cn[i]])
   abline(betas.ps[1], betas.ps[cn[i]], col=2)
   #lines(x, y, col=2)
@@ -372,7 +345,7 @@ for (i in seq_along(cn)){
 
 
 ###########################################################
-######## model checks for residuals
+######## model checks 
 ###########################################################
 ### variance check/residual sd check in each group PS and PA
 fitted.pa = colMeans(extract(fit.stan.pa)$mu)
@@ -380,54 +353,6 @@ fitted.ps = colMeans(extract(fit.stan.ps)$mu)
 # get residuals that is response minus fitted values
 iResid.pa = (dfData.pa$CD63.Act[dfData.pa$CD63.Act > 0.01] - fitted.pa)
 iResid.ps = (dfData.ps$CD63.Act[dfData.ps$CD63.Act > 0.01] - fitted.ps)
-## calculate standardized residuals
-## these are useful to detect non-normality
-## see equation 14.7 in Gelman 2013
-## for t-distribution it is sqrt((scale^2)*(nu/(nu-2)))
-s = mean(extract(fit.stan.pa)$sigmaPop)
-nu = mean(extract(fit.stan.pa)$nu)
-sa = sqrt((s^2)*(nu/(nu-2)))
-
-s = mean(extract(fit.stan.ps)$sigmaPop)
-nu = mean(extract(fit.stan.ps)$nu)
-ss = sqrt((s^2)*(nu/(nu-2)))
-
-iResid = c(iResid.pa/sa, iResid.ps/ss)
-l = c(rep(1, times=length(iResid.pa)), rep(2, times=length(iResid.ps)))
-plot(l, abs(iResid), xaxt='n', ylab='Absolute Standardised Residuals', main='Unequal ')
-axis(1, at = c(1,2), labels = c('PA', 'PS'))
-
-mFitted = extract(fit.stan.ps)$mu
-fitted = colMeans(mFitted)
-# get residuals that is response minus fitted values
-iResid = (dfData.ps$CD63.Act[dfData.ps$CD63.Act > 0.01] - fitted)
-plot(fitted, iResid, pch=20, cex=0.5)
-lines(lowess(fitted, iResid), col=2, lwd=2)
-plot(dfData.ps$CD63.Act[dfData.ps$CD63.Act > 0.01], fitted, pch=20)
-## calculate standardized residuals
-## these are useful to detect non-normality
-## see equation 14.7 in Gelman 2013
-## for t-distribution it is sqrt((scale^2)*(nu/(nu-2)))
-s = mean(extract(fit.stan.ps)$sigmaPop)
-nu = mean(extract(fit.stan.ps)$nu)
-s = sqrt((s^2)*(nu/(nu-2)))
-plot(fitted, iResid/s, pch=20, cex=0.5, main='standardized residuals')
-lines(lowess(fitted, iResid/s), col=2, lwd=2)
-
-## checking for non-linearity
-n = colnames(dfData[,-1])
-n = n[-(length(n))]
-par(mfrow=c(2,2))
-sapply(n, function(x){
-  plot(dfData.ps[dfData.ps$CD63.Act > 0.01 ,x], iResid/s, main=paste(x))
-  lines(lowess(dfData.ps[dfData.ps$CD63.Act > 0.01,x], iResid/s), col=2)
-})
-
-## unequal variances
-sapply(n, function(x){
-  plot(dfData.ps[dfData.ps$CD63.Act > 0.01,x], abs(iResid), main=paste(x))
-  lines(lowess(dfData.ps[dfData.ps$CD63.Act > 0.01,x], abs(iResid)), col=2)
-})
 
 ### generate some posterior predictive data
 ## generate random samples from alternative t-distribution parameterization
@@ -450,9 +375,9 @@ runRegression = function(yrep, mModMatrix){
   lStanData = list(Ntotal=nrow(m), Ncol=ncol(m), X=m, rLower=0.01,
                    X2 = m2,
                    Ncens = nrow(m2),
-                   NBatchMap = c(1, 2, rep(3, times=9), 4, 4), NscaleBatches=4,
+                   #NBatchMap = c(1, 2, rep(3, times=9), 4, 4), NscaleBatches=4,
                    y=yrep[-f])
-  f.s = sampling(stanDso.2, data=lStanData, iter=1000, chains=2, pars=c('betas', 'mu', 'nu', 'sigmaPop'),
+  f.s = sampling(stanDso, data=lStanData, iter=1000, chains=2, pars=c('betas', 'mu', 'nu', 'sigmaPop'),
                         cores=2)
   iFitted = colMeans(extract(f.s)$mu)
   nu = mean(extract(f.s)$nu)
@@ -462,47 +387,42 @@ runRegression = function(yrep, mModMatrix){
   return(list(stan=f.s, res=res, res.sd=res/sig, sig=sig, yrep=yrep))
 }
 
-### test functions
-# l = extract(fit.stan.2)
-# names(l)
-# s = simulateOne(colMeans(l$betas), 
-#                 mean(l$sigmaPop),
-#                 mean(l$nu),
-#                 model.matrix(CD63.Act ~ ., data=dfData))
-# 
-# r = runRegression(s, model.matrix(CD63.Act ~ ., data=dfData))
-
-### test works, continue with simulation
-## sample n values, 1000 times
+## sample n values, replicated x times
 mDraws.sim = matrix(NA, nrow = nrow(dfData.pa), ncol=30)
 lSims = vector(mode = 'list', length = 30)
-l = extract(fit.stan.2)
+l = extract(fit.stan.pa)
 for (i in 1:30){
   p = sample(1:nrow(l$betas), 1)
   mDraws.sim[,i] = simulateOne(l$betas[p,], 
                   l$sigmaPop[p],
                   l$nu[p],
-                  model.matrix(CD63.Act ~ ., data=dfData.pa[,-1]))
+                  model.matrix(CD63.Act ~ ., data=dfData.pa[,c(cVar, 'CD63.Act')]))
   
-  lSims[[i]] = runRegression(mDraws.sim[,i], model.matrix(CD63.Act ~ ., data=dfData.pa[,-1]))
+  lSims[[i]] = runRegression(mDraws.sim[,i], model.matrix(CD63.Act ~ ., data=dfData.pa[,c(cVar, 'CD63.Act')]))
 }
 
+par(mfrow=c(2,2))
 hist(dfData.pa$CD63.Act, prob=T)
 plot(density(dfData.pa$CD63.Act))
 apply(mDraws.sim, 2, function(x) lines(density(x)))
 
-iResLimit = ceiling(abs(s * 3))
-
+s = mean(extract(fit.stan.pa)$sigmaPop)
+nu = mean(extract(fit.stan.pa)$nu)
+sa = sqrt((s^2)*(nu/(nu-2)))
+iResLimit = ceiling(abs(sa * 3))
+# observed residuals
+iResid.pa = (dfData.pa$CD63.Act[dfData.pa$CD63.Act > 0.01] - fitted.pa)
 ## proportion of absolute value residuals that exceed limit iResLimit
 T1_proportion = function(Y) {
   return(sum(abs(Y) > iResLimit)/length(Y))
 }
 
+# outliers in realised realized residuals
 iOutliers = sapply(lSims, function(x){
   return(T1_proportion(x$res))
 })
 
-iObserved = T1_proportion(iResid)
+iObserved = T1_proportion(iResid.pa)
 hist(iOutliers)
 points(iObserved, 0, col=2)
 
@@ -573,133 +493,6 @@ lines(x, col='lightgrey', lwd=0.6)
 })
 lines(yresp)
 
-lSims = lapply(lSims, function(x) {x$stan = NULL
-  return(x)
-  })
-
-save(lSims, file='temp/lSims.ps.rds')
-save(mDraws.sim, file='temp/mDraws.sim.ps.rds')
-### plot the residuals
-plot(dfData$response, iResid, pch=c(2,20)[as.numeric(dfData$treatment)], cex=0.5, main='MCMC')
-lines(lowess(dfData$response, iResid))
-
-plot(density(iResid))
-g = apply(mDraws.res, 2, function(x) lines(density(x), lwd=0.5, col=2))
-lines(density(iResid))
-
-####### end model checks residuals
-###########################################################
-
-###########################################################
-######## model checks for data distribution
-###########################################################
-## calculate bayesian p-value for a test statistic
-getPValue = function(Trep, Tobs){
-  left = sum(Trep <= Tobs)/length(Trep)
-  right = sum(Trep >= Tobs)/length(Trep)
-  return(min(left, right))
-}
-## define some test quantities to measure the lack of fit
-## define a test quantity T(y, theta)
-## variance
-T1_var = function(Y) return(var(Y))
-
-## min quantity
-T1_min = function(Y){
-  return(min(Y))
-} 
-
-## max quantity
-T1_max = function(Y){
-  return(max(Y))
-} 
-
-## mean quantity
-T1_mean = function(Y){
-  return(mean(Y))
-} 
-
-## median quantity
-T1_median = function(Y){
-  return(median(Y))
-} 
-
-## mChecks
-mChecks = matrix(NA, nrow=5, ncol=2)
-rownames(mChecks) = c('Variance', 'Median', 'Max', 'Min', 'Mean')
-colnames(mChecks) = c('student', 'mixture')
-
-## generate random samples from alternative t-distribution parameterization
-## see https://grollchristian.wordpress.com/2013/04/30/students-t-location-scale/
-rt_ls <- function(n, df, mu, a) rt(n,df)*a + mu
-
-ivResp = dfData$CD63.Act
-########## simulate 200 test replications of test quantities
-mDraws = matrix(NA, nrow = length(ivResp), ncol=200)
-mThetas = matrix(NA, nrow=200, ncol=4)
-colnames(mThetas) = c('mu', 'median', 'scale', 'nu')
-
-# sample of values from the simulation
-l = extract(fit.stan.2)
-names(l)
-
-sigSample = l$sigmaPop
-muSample = cbind(l$mu, l$mu2)
-nuSample = l$nu
-dim(muSample)
-dim(mDraws)
-
-for (i in 1:200){
-  p = sample(1:nrow(muSample), size = 1)
-  s = sigSample[p]
-  m = muSample[p,]
-  n = nuSample[p]
-  mDraws[,i] = rt_ls(length(m), n, m, s)
-  mThetas[i,] = c(mean(m), median(m), s, n)
-}
-
-mDraws = apply(mDraws, 2, function(x) { x[x < 0.01] = 0.01; return(x)})
-mDraws.t = mDraws
-## get the p-values for the test statistics
-t1 = apply(mDraws, 2, T1_var)
-mChecks['Variance', 'student'] = getPValue(t1, var(ivResp))
-
-## testing for outlier detection
-t1 = apply(mDraws, 2, T1_min)
-mChecks['Min', 'student'] = getPValue(t1, T1_min(ivResp))
-
-## maximum value
-t1 = apply(mDraws, 2, T1_max)
-mChecks['Max', 'student'] = getPValue(t1, T1_max(ivResp))
-
-## mean value
-t1 = apply(mDraws, 2, T1_mean)
-mChecks['Mean', 'student'] = getPValue(t1, T1_mean(ivResp))
-
-## median value
-t1 = apply(mDraws, 2, T1_median)
-mChecks['Median', 'student'] = getPValue(t1, T1_median(ivResp))
-
-mChecks
-
-## plots of densities
-par(p.old)
-yresp = density(ivResp)
-plot(yresp, xlab='', main='Fitted distribution', ylab='density', lwd=2)
-hist(ivResp, prob=T, add=T)
-temp = apply(mDraws, 2, function(x) {x = density(x)
-#x$y = x$y/max(x$y)
-lines(x, col='red', lwd=0.6)
-})
-lines(yresp, lwd=2)
-
-hist(ivResp, prob=T)
-## t samples
-temp = apply(mDraws.t, 2, function(x) {x = density(x)
-#x$y = x$y/max(x$y)
-lines(x, col='red', lwd=0.6)
-})
-
-####### end model checks for data distribution
+####### end model checks
 ###########################################################
 

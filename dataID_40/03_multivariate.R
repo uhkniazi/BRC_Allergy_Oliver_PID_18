@@ -131,12 +131,12 @@ df$treatment = dfData$Allergic.Status
 
 densityplot(~ values | ind, data=df, groups=treatment, auto.key=T, scales=list(relation='free'))
 
-xyplot(y ~ values | ind, data=df[df$values > 0,], type=c('g', 'p', 'smooth'), pch=19, cex=0.6, groups=treatment,
+xyplot(y ~ values | ind, data=df[df$y > 0,], type=c('g', 'p', 'smooth'), pch=19, cex=0.6, groups=treatment,
        #index.cond = function(x,y) coef(lm(y ~ x))[1], #aspect='xy',# layout=c(8,2),
        par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'),
        ylab='%CD63 Activation', auto.key=list(columns=2))
 
-xyplot(y ~ values | ind, data=df[df$values > 0,], type=c('g', 'p', 'r'), pch=19, cex=0.6, groups=treatment,
+xyplot(y ~ values | ind, data=df[df$y > 0,], type=c('g', 'p', 'r'), pch=19, cex=0.6, groups=treatment,
        #index.cond = function(x,y) coef(lm(y ~ x))[1], #aspect='xy',# layout=c(8,2),
        par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'),
        ylab='%CD63 Activation', auto.key=list(columns=2))
