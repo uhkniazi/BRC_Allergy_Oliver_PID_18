@@ -185,31 +185,31 @@ rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 # stanDso = rstan::stan_model(file='tResponseRegression_censored.stan')
 # 
-# m = model.matrix(CD63.Act ~ ., data=dfData.ps[dfData.ps$CD63.Act > 0.01, -1])
-# m2 = model.matrix(CD63.Act ~ ., data=dfData.ps[dfData.ps$CD63.Act <= 0.01, -1])
+# m = model.matrix(CD63.Act ~ ., data=dfData.pa[dfData.pa$CD63.Act > 0.01, -1])
+# m2 = model.matrix(CD63.Act ~ ., data=dfData.pa[dfData.pa$CD63.Act <= 0.01, -1])
 # 
 # lStanData = list(Ntotal=nrow(m), Ncol=ncol(m), X=m, rLower=0.01,
 #                  X2 = m2,
 #                  Ncens = nrow(m2),
-#                  y=dfData.ps$CD63.Act[dfData.ps$CD63.Act > 0.01])
+#                  y=dfData.pa$CD63.Act[dfData.pa$CD63.Act > 0.01])
 # 
-# fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=2, pars=c('betas', 'mu', 'y_cens', 'mu2', 'sigmaPop', 'nu'),
+# fit.stan = sampling(stanDso, data=lStanData, iter=2000, chains=2, pars=c('betas', 'mu', 'y_cens', 'mu2', 'sigmaPop', 'nu'),
 #                     cores=2)
 # print(fit.stan, c('betas', 'sigmaPop', 'nu'), digits=3)
-# print(fit.stan.1.pa, c('mu', 'mu2'))
-# print(fit.stan.1.pa, c('y_cens'))
+# print(fit.stan, c('mu', 'mu2'))
+# print(fit.stan, c('y_cens'))
 # # some diagnostics for stan
 # traceplot(fit.stan, c('sigmaPop', 'nu'), ncol=1, inc_warmup=F)
 # 
 # m = extract(fit.stan, 'betas')
 # betas = colMeans(m$betas)
 # names(betas) = colnames(lStanData$X)
-# # compare with lm 
+# # compare with lm
 # data.frame(coef(fit.1.ps), betas)
 # 
 # s = cbind(extract(fit.stan)$betas, extract(fit.stan)$sigmaPop)
 # colnames(s) = c(colnames(lStanData$X), 'sigmaPop')
-# pairs(s, pch=20)
+# pairs(s, pch=20, cex=0.5, col='grey')
 
 ### partial pooling of batches of coefficients
 stanDso.2 = rstan::stan_model(file='tResponseRegression_partialPoolingBatches_censored.stan')
@@ -221,7 +221,7 @@ m2 = model.matrix(CD63.Act ~ ., data=dfData.pa[dfData.pa$CD63.Act <= 0.01, -1])
 lStanData = list(Ntotal=nrow(m), Ncol=ncol(m), X=m, rLower=0.01,
                  X2 = m2,
                  Ncens = nrow(m2),
-                 NBatchMap = c(1, 2, rep(3, times=9), 4, 4), NscaleBatches=4,
+                 NBatchMap = c(1, 2, 3, 4, rep(5, times=4), 6, 5, 5, 7, 7), NscaleBatches=7,
                  y=dfData.pa$CD63.Act[dfData.pa$CD63.Act > 0.01])
 
 fit.stan.pa = sampling(stanDso.2, data=lStanData, iter=5000, chains=4, pars=c('betas', 'mu', 'y_cens', 'mu2', 'sigmaPop', 'nu', 'sigmaRan'),
@@ -234,7 +234,7 @@ m2 = model.matrix(CD63.Act ~ ., data=dfData.ps[dfData.ps$CD63.Act <= 0.01, -1])
 lStanData = list(Ntotal=nrow(m), Ncol=ncol(m), X=m, rLower=0.01,
                  X2 = m2,
                  Ncens = nrow(m2),
-                 NBatchMap = c(1, 2, rep(3, times=9), 4, 4), NscaleBatches=4,
+                 NBatchMap = c(1, 2, 3, 4, rep(5, times=4), 6, 5, 5, 7, 7), NscaleBatches=7,
                  y=dfData.ps$CD63.Act[dfData.ps$CD63.Act > 0.01])
 
 fit.stan.ps = sampling(stanDso.2, data=lStanData, iter=5000, chains=4, pars=c('betas', 'mu', 'y_cens', 'mu2', 'sigmaPop', 'nu', 'sigmaRan'),
@@ -380,24 +380,24 @@ for(l in 1:ncol(df)){
 ###############################################
 #################### plots for slopes
 ###############################################
-cn = colnames(dfData)[-c(1, 15)]
-dfPlot = rbind(dfData.pa, dfData.ps)
-dfPlot = dfPlot[dfPlot$CD63.Act > 0.01,]
-betas.pa = colMeans(extract(fit.stan.pa)$betas)
-betas.ps = colMeans(extract(fit.stan.ps)$betas)
-names(betas.pa) = colnames(lStanData$X)
-names(betas.ps) = colnames(lStanData$X)
-par(mfrow=c(2,2))
-for (i in seq_along(cn)){
-  #r = range(dfPlot[,cn[i]])
-  #x = seq(r[1], r[2], length.out = 100)
-  #y = betas[1] + betas[cn[i]] * x
-  plot(dfPlot[,cn[i]], dfPlot$CD63.Act, pch=20, xlab=paste(cn[i]), ylab='%CD63 Activation', type='n')
-  #points(dfPlot[dfPlot$Allergic.Status == 'PS',cn[i]], dfPlot$CD63.Act[dfPlot$Allergic.Status == 'PS'], pch=20, col=2)
-  abline(betas.pa[1], betas.pa[cn[i]])
-  abline(betas.ps[1], betas.ps[cn[i]], col=2)
-  #lines(x, y, col=2)
-}
+# cn = colnames(dfData)[-c(1, 15)]
+# dfPlot = rbind(dfData.pa, dfData.ps)
+# dfPlot = dfPlot[dfPlot$CD63.Act > 0.01,]
+# betas.pa = colMeans(extract(fit.stan.pa)$betas)
+# betas.ps = colMeans(extract(fit.stan.ps)$betas)
+# names(betas.pa) = colnames(lStanData$X)
+# names(betas.ps) = colnames(lStanData$X)
+# par(mfrow=c(2,2))
+# for (i in seq_along(cn)){
+#   #r = range(dfPlot[,cn[i]])
+#   #x = seq(r[1], r[2], length.out = 100)
+#   #y = betas[1] + betas[cn[i]] * x
+#   plot(dfPlot[,cn[i]], dfPlot$CD63.Act, pch=20, xlab=paste(cn[i]), ylab='%CD63 Activation', type='n')
+#   #points(dfPlot[dfPlot$Allergic.Status == 'PS',cn[i]], dfPlot$CD63.Act[dfPlot$Allergic.Status == 'PS'], pch=20, col=2)
+#   abline(betas.pa[1], betas.pa[cn[i]])
+#   abline(betas.ps[1], betas.ps[cn[i]], col=2)
+#   #lines(x, y, col=2)
+# }
 ###############################################
 
 
@@ -424,40 +424,28 @@ ss = sqrt((s^2)*(nu/(nu-2)))
 
 iResid = c(iResid.pa/sa, iResid.ps/ss)
 l = c(rep(1, times=length(iResid.pa)), rep(2, times=length(iResid.ps)))
-plot(l, abs(iResid), xaxt='n', ylab='Absolute Standardised Residuals', main='Unequal ')
+plot(l, abs(iResid), xaxt='n', ylab='Absolute Standardised Residuals', main='Unequal Variance in each group')
 axis(1, at = c(1,2), labels = c('PA', 'PS'))
 
-mFitted = extract(fit.stan.ps)$mu
-fitted = colMeans(mFitted)
 # get residuals that is response minus fitted values
-iResid = (dfData.ps$CD63.Act[dfData.ps$CD63.Act > 0.01] - fitted)
-plot(fitted, iResid, pch=20, cex=0.5)
-lines(lowess(fitted, iResid), col=2, lwd=2)
-plot(dfData.ps$CD63.Act[dfData.ps$CD63.Act > 0.01], fitted, pch=20)
-## calculate standardized residuals
-## these are useful to detect non-normality
-## see equation 14.7 in Gelman 2013
-## for t-distribution it is sqrt((scale^2)*(nu/(nu-2)))
-s = mean(extract(fit.stan.ps)$sigmaPop)
-nu = mean(extract(fit.stan.ps)$nu)
-s = sqrt((s^2)*(nu/(nu-2)))
-plot(fitted, iResid/s, pch=20, cex=0.5, main='standardized residuals')
-lines(lowess(fitted, iResid/s), col=2, lwd=2)
+plot(fitted.pa, iResid.pa, pch=20, cex=0.5)
+lines(lowess(fitted.pa, iResid.pa), col=2, lwd=2)
+plot(dfData.pa$CD63.Act[dfData.pa$CD63.Act > 0.01], fitted.pa, pch=20, xlab='observed')
 
 ## checking for non-linearity
 n = colnames(dfData[,-1])
 n = n[-(length(n))]
 par(mfrow=c(2,2))
 sapply(n, function(x){
-  plot(dfData.ps[dfData.ps$CD63.Act > 0.01 ,x], iResid/s, main=paste(x))
-  lines(lowess(dfData.ps[dfData.ps$CD63.Act > 0.01,x], iResid/s), col=2)
+  plot(dfData.pa[dfData.pa$CD63.Act > 0.01 ,x], iResid.pa/sa, main=paste(x))
+  lines(lowess(dfData.pa[dfData.pa$CD63.Act > 0.01,x], iResid.pa/sa), col=2)
 })
 
-## unequal variances
-sapply(n, function(x){
-  plot(dfData.ps[dfData.ps$CD63.Act > 0.01,x], abs(iResid), main=paste(x))
-  lines(lowess(dfData.ps[dfData.ps$CD63.Act > 0.01,x], abs(iResid)), col=2)
-})
+# ## unequal variances
+# sapply(n, function(x){
+#   plot(dfData.ps[dfData.ps$CD63.Act > 0.01,x], abs(iResid), main=paste(x))
+#   lines(lowess(dfData.ps[dfData.ps$CD63.Act > 0.01,x], abs(iResid)), col=2)
+# })
 
 ### generate some posterior predictive data
 ## generate random samples from alternative t-distribution parameterization
@@ -480,7 +468,7 @@ runRegression = function(yrep, mModMatrix){
   lStanData = list(Ntotal=nrow(m), Ncol=ncol(m), X=m, rLower=0.01,
                    X2 = m2,
                    Ncens = nrow(m2),
-                   NBatchMap = c(1, 2, rep(3, times=9), 4, 4), NscaleBatches=4,
+                   NBatchMap =c(1, 2, 3, 4, rep(5, times=4), 6, 5, 5, 7, 7), NscaleBatches=7,
                    y=yrep[-f])
   f.s = sampling(stanDso.2, data=lStanData, iter=1000, chains=2, pars=c('betas', 'mu', 'nu', 'sigmaPop'),
                         cores=2)
@@ -506,7 +494,7 @@ runRegression = function(yrep, mModMatrix){
 ## sample n values, 1000 times
 mDraws.sim = matrix(NA, nrow = nrow(dfData.pa), ncol=30)
 lSims = vector(mode = 'list', length = 30)
-l = extract(fit.stan.2)
+l = extract(fit.stan.pa)
 for (i in 1:30){
   p = sample(1:nrow(l$betas), 1)
   mDraws.sim[,i] = simulateOne(l$betas[p,], 
@@ -517,11 +505,12 @@ for (i in 1:30){
   lSims[[i]] = runRegression(mDraws.sim[,i], model.matrix(CD63.Act ~ ., data=dfData.pa[,-1]))
 }
 
+## visual distribution check
 hist(dfData.pa$CD63.Act, prob=T)
 plot(density(dfData.pa$CD63.Act))
 apply(mDraws.sim, 2, function(x) lines(density(x)))
 
-iResLimit = ceiling(abs(s * 3))
+iResLimit = ceiling(abs(sa * 3))
 
 ## proportion of absolute value residuals that exceed limit iResLimit
 T1_proportion = function(Y) {
@@ -532,7 +521,7 @@ iOutliers = sapply(lSims, function(x){
   return(T1_proportion(x$res))
 })
 
-iObserved = T1_proportion(iResid)
+iObserved = T1_proportion(iResid.pa)
 hist(iOutliers)
 points(iObserved, 0, col=2)
 
@@ -591,145 +580,48 @@ getPValue(t1, T1_mean(dfData.pa$CD63.Act))
 t1 = apply(mDraws.sim, 2, T1_median)
 getPValue(t1, T1_median(dfData.pa$CD63.Act))
 
+## plot the relationship with covariates and simulated data
+par(mfrow=c(1,2))
+plot(dfData.pa$Age, dfData.pa$CD63.Act, pch=20, col=2)
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Age, x), lwd=0.8, col='grey'))
 
-### visual checks
-ivResp = dfData.pa$CD63.Act
-yresp = density(ivResp)
-plot(yresp, xlab='', main='Fitted distribution', ylab='density', lwd=2)#, ylim=c(0, 1))
-hist(ivResp, prob=T, main='Original Data with simulated data', xlab='Response Variable', add=T)
-temp = apply(mDraws.sim, 2, function(x) {x = density(x)
-#x$y = x$y/max(x$y)
-lines(x, col='lightgrey', lwd=0.6)
-})
-lines(yresp)
+plot(dfData.pa$Peanut.SPT, dfData.pa$CD63.Act, pch=20, col=2)
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Peanut.SPT, x), lwd=0.8, col='grey'))
 
-lSims = lapply(lSims, function(x) {x$stan = NULL
-  return(x)
-  })
+plot(dfData.pa$total.IgE, dfData.pa$CD63.Act, pch=20, col=2)
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$total.IgE, x), lwd=0.8, col='grey'))
 
-save(lSims, file='temp/lSims.ps.rds')
-save(mDraws.sim, file='temp/mDraws.sim.ps.rds')
-### plot the residuals
-plot(dfData$response, iResid, pch=c(2,20)[as.numeric(dfData$treatment)], cex=0.5, main='MCMC')
-lines(lowess(dfData$response, iResid))
+plot(dfData.pa$f13.Peanut, dfData.pa$CD63.Act, pch=20, col=2)
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f13.Peanut, x), lwd=0.8, col='grey'))
 
-plot(density(iResid))
-g = apply(mDraws.res, 2, function(x) lines(density(x), lwd=0.5, col=2))
-lines(density(iResid))
+plot(dfData.pa$f422.rAra.h.1, dfData.pa$CD63.Act, pch=20, col=2)
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f422.rAra.h.1, x), lwd=0.8, col='grey'))
+
+plot(dfData.pa$f423.Ara.h.2, dfData.pa$CD63.Act, pch=20, col=2)
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f423.Ara.h.2, x), lwd=0.8, col='grey'))
+
+plot(dfData.pa$f424.rAra.h.3, dfData.pa$CD63.Act, pch=20, col=2)
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f424.rAra.h.3, x), lwd=0.8, col='grey'))
+
+plot(dfData.pa$f423.nAra.H.6, dfData.pa$CD63.Act, pch=20, col=2)
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f423.nAra.H.6, x), lwd=0.8, col='grey'))
+
+plot(dfData.pa$Peanut.Sp.Act, dfData.pa$CD63.Act, pch=20, col=2)
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Peanut.Sp.Act, x), lwd=0.8, col='grey'))
+
+plot(dfData.pa$Ara.h.2.Sp.Act, dfData.pa$CD63.Act, pch=20, col=2)
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Ara.h.2.Sp.Act, x), lwd=0.8, col='grey'))
+
+plot(dfData.pa$Ara.h.6.Sp.Act, dfData.pa$CD63.Act, pch=20, col=2)
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Ara.h.6.Sp.Act, x), lwd=0.8, col='grey'))
+
+plot(dfData.pa$ISAC.Shannon, dfData.pa$CD63.Act, pch=20, col=2)
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$ISAC.Shannon, x), lwd=0.8, col='grey'))
+
+plot(dfData.pa$Peanut.Shannon, dfData.pa$CD63.Act, pch=20, col=2)
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Peanut.Shannon, x), lwd=0.8, col='grey'))
+
 
 ####### end model checks residuals
-###########################################################
-
-###########################################################
-######## model checks for data distribution
-###########################################################
-## calculate bayesian p-value for a test statistic
-getPValue = function(Trep, Tobs){
-  left = sum(Trep <= Tobs)/length(Trep)
-  right = sum(Trep >= Tobs)/length(Trep)
-  return(min(left, right))
-}
-## define some test quantities to measure the lack of fit
-## define a test quantity T(y, theta)
-## variance
-T1_var = function(Y) return(var(Y))
-
-## min quantity
-T1_min = function(Y){
-  return(min(Y))
-} 
-
-## max quantity
-T1_max = function(Y){
-  return(max(Y))
-} 
-
-## mean quantity
-T1_mean = function(Y){
-  return(mean(Y))
-} 
-
-## median quantity
-T1_median = function(Y){
-  return(median(Y))
-} 
-
-## mChecks
-mChecks = matrix(NA, nrow=5, ncol=2)
-rownames(mChecks) = c('Variance', 'Median', 'Max', 'Min', 'Mean')
-colnames(mChecks) = c('student', 'mixture')
-
-## generate random samples from alternative t-distribution parameterization
-## see https://grollchristian.wordpress.com/2013/04/30/students-t-location-scale/
-rt_ls <- function(n, df, mu, a) rt(n,df)*a + mu
-
-ivResp = dfData$CD63.Act
-########## simulate 200 test replications of test quantities
-mDraws = matrix(NA, nrow = length(ivResp), ncol=200)
-mThetas = matrix(NA, nrow=200, ncol=4)
-colnames(mThetas) = c('mu', 'median', 'scale', 'nu')
-
-# sample of values from the simulation
-l = extract(fit.stan.2)
-names(l)
-
-sigSample = l$sigmaPop
-muSample = cbind(l$mu, l$mu2)
-nuSample = l$nu
-dim(muSample)
-dim(mDraws)
-
-for (i in 1:200){
-  p = sample(1:nrow(muSample), size = 1)
-  s = sigSample[p]
-  m = muSample[p,]
-  n = nuSample[p]
-  mDraws[,i] = rt_ls(length(m), n, m, s)
-  mThetas[i,] = c(mean(m), median(m), s, n)
-}
-
-mDraws = apply(mDraws, 2, function(x) { x[x < 0.01] = 0.01; return(x)})
-mDraws.t = mDraws
-## get the p-values for the test statistics
-t1 = apply(mDraws, 2, T1_var)
-mChecks['Variance', 'student'] = getPValue(t1, var(ivResp))
-
-## testing for outlier detection
-t1 = apply(mDraws, 2, T1_min)
-mChecks['Min', 'student'] = getPValue(t1, T1_min(ivResp))
-
-## maximum value
-t1 = apply(mDraws, 2, T1_max)
-mChecks['Max', 'student'] = getPValue(t1, T1_max(ivResp))
-
-## mean value
-t1 = apply(mDraws, 2, T1_mean)
-mChecks['Mean', 'student'] = getPValue(t1, T1_mean(ivResp))
-
-## median value
-t1 = apply(mDraws, 2, T1_median)
-mChecks['Median', 'student'] = getPValue(t1, T1_median(ivResp))
-
-mChecks
-
-## plots of densities
-par(p.old)
-yresp = density(ivResp)
-plot(yresp, xlab='', main='Fitted distribution', ylab='density', lwd=2)
-hist(ivResp, prob=T, add=T)
-temp = apply(mDraws, 2, function(x) {x = density(x)
-#x$y = x$y/max(x$y)
-lines(x, col='red', lwd=0.6)
-})
-lines(yresp, lwd=2)
-
-hist(ivResp, prob=T)
-## t samples
-temp = apply(mDraws.t, 2, function(x) {x = density(x)
-#x$y = x$y/max(x$y)
-lines(x, col='red', lwd=0.6)
-})
-
-####### end model checks for data distribution
 ###########################################################
 
