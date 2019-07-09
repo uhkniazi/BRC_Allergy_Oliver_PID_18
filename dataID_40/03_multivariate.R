@@ -492,10 +492,10 @@ runRegression = function(yrep, mModMatrix){
 
 ### test works, continue with simulation
 ## sample n values, 1000 times
-mDraws.sim = matrix(NA, nrow = nrow(dfData.pa), ncol=30)
-lSims = vector(mode = 'list', length = 30)
+mDraws.sim = matrix(NA, nrow = nrow(dfData.pa), ncol=300)
+lSims = vector(mode = 'list', length = 300)
 l = extract(fit.stan.pa)
-for (i in 1:30){
+for (i in 1:300){
   p = sample(1:nrow(l$betas), 1)
   mDraws.sim[,i] = simulateOne(l$betas[p,], 
                   l$sigmaPop[p],
@@ -581,45 +581,63 @@ t1 = apply(mDraws.sim, 2, T1_median)
 getPValue(t1, T1_median(dfData.pa$CD63.Act))
 
 ## plot the relationship with covariates and simulated data
-par(mfrow=c(1,2))
-plot(dfData.pa$Age, dfData.pa$CD63.Act, pch=20, col=2)
-apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Age, x), lwd=0.8, col='grey'))
+pdf('results/simulated_vs_covariates.pdf')
+par(mfrow=c(2,2))
+plot(dfData.pa$Age, dfData.pa$CD63.Act, pch=20, col=2, xlab='Age', ylab="%CD63 Activation")
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Age, x), lwd=0.5, col='grey'))
 
-plot(dfData.pa$Peanut.SPT, dfData.pa$CD63.Act, pch=20, col=2)
-apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Peanut.SPT, x), lwd=0.8, col='grey'))
+plot(dfData.pa$Peanut.SPT, dfData.pa$CD63.Act, pch=20, col=2, xlab='Peanut.SPT', ylab="%CD63 Activation")
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Peanut.SPT, x), lwd=0.5, col='grey'))
 
-plot(dfData.pa$total.IgE, dfData.pa$CD63.Act, pch=20, col=2)
-apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$total.IgE, x), lwd=0.8, col='grey'))
+plot(dfData.pa$total.IgE, dfData.pa$CD63.Act, pch=20, col=2, xlab='total.IgE', ylab="%CD63 Activation")
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$total.IgE, x), lwd=0.5, col='grey'))
 
-plot(dfData.pa$f13.Peanut, dfData.pa$CD63.Act, pch=20, col=2)
-apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f13.Peanut, x), lwd=0.8, col='grey'))
+plot(dfData.pa$f13.Peanut, dfData.pa$CD63.Act, pch=20, col=2, xlab='f13.Peanut', ylab="%CD63 Activation")
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f13.Peanut, x), lwd=0.5, col='grey'))
 
-plot(dfData.pa$f422.rAra.h.1, dfData.pa$CD63.Act, pch=20, col=2)
-apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f422.rAra.h.1, x), lwd=0.8, col='grey'))
+plot(dfData.pa$f422.rAra.h.1, dfData.pa$CD63.Act, pch=20, col=2, xlab='f422.rAra.h.1', ylab="%CD63 Activation")
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f422.rAra.h.1, x), lwd=0.5, col='grey'))
 
-plot(dfData.pa$f423.Ara.h.2, dfData.pa$CD63.Act, pch=20, col=2)
-apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f423.Ara.h.2, x), lwd=0.8, col='grey'))
+plot(dfData.pa$f423.Ara.h.2, dfData.pa$CD63.Act, pch=20, col=2, xlab='f423.Ara.h.2', ylab="%CD63 Activation")
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f423.Ara.h.2, x), lwd=0.5, col='grey'))
 
-plot(dfData.pa$f424.rAra.h.3, dfData.pa$CD63.Act, pch=20, col=2)
-apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f424.rAra.h.3, x), lwd=0.8, col='grey'))
+plot(dfData.pa$f424.rAra.h.3, dfData.pa$CD63.Act, pch=20, col=2, xlab='f424.rAra.h.3', ylab="%CD63 Activation")
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f424.rAra.h.3, x), lwd=0.5, col='grey'))
 
-plot(dfData.pa$f423.nAra.H.6, dfData.pa$CD63.Act, pch=20, col=2)
-apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f423.nAra.H.6, x), lwd=0.8, col='grey'))
+plot(dfData.pa$f423.nAra.H.6, dfData.pa$CD63.Act, pch=20, col=2, xlab='f423.nAra.H.6', ylab="%CD63 Activation")
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$f423.nAra.H.6, x), lwd=0.5, col='grey'))
 
-plot(dfData.pa$Peanut.Sp.Act, dfData.pa$CD63.Act, pch=20, col=2)
-apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Peanut.Sp.Act, x), lwd=0.8, col='grey'))
+plot(dfData.pa$Peanut.Sp.Act, dfData.pa$CD63.Act, pch=20, col=2, xlab='Peanut.Sp.Act', ylab="%CD63 Activation")
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Peanut.Sp.Act, x), lwd=0.5, col='grey'))
 
-plot(dfData.pa$Ara.h.2.Sp.Act, dfData.pa$CD63.Act, pch=20, col=2)
-apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Ara.h.2.Sp.Act, x), lwd=0.8, col='grey'))
+plot(dfData.pa$Ara.h.2.Sp.Act, dfData.pa$CD63.Act, pch=20, col=2, xlab='Ara.h.2.Sp.Act', ylab="%CD63 Activation")
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Ara.h.2.Sp.Act, x), lwd=0.5, col='grey'))
 
-plot(dfData.pa$Ara.h.6.Sp.Act, dfData.pa$CD63.Act, pch=20, col=2)
-apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Ara.h.6.Sp.Act, x), lwd=0.8, col='grey'))
+plot(dfData.pa$Ara.h.6.Sp.Act, dfData.pa$CD63.Act, pch=20, col=2, xlab='Ara.h.6.Sp.Act', ylab="%CD63 Activation")
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Ara.h.6.Sp.Act, x), lwd=0.5, col='grey'))
 
-plot(dfData.pa$ISAC.Shannon, dfData.pa$CD63.Act, pch=20, col=2)
-apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$ISAC.Shannon, x), lwd=0.8, col='grey'))
+plot(dfData.pa$ISAC.Shannon, dfData.pa$CD63.Act, pch=20, col=2, xlab='ISAC.Shannon', ylab="%CD63 Activation")
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$ISAC.Shannon, x), lwd=0.5, col='grey'))
 
-plot(dfData.pa$Peanut.Shannon, dfData.pa$CD63.Act, pch=20, col=2)
-apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Peanut.Shannon, x), lwd=0.8, col='grey'))
+plot(dfData.pa$Peanut.Shannon, dfData.pa$CD63.Act, pch=20, col=2, xlab='Peanut.Shannon', ylab="%CD63 Activation")
+apply(mDraws.sim, 2, function(x) lines(lowess(dfData.pa$Peanut.Shannon, x), lwd=0.5, col='grey'))
+
+dev.off(dev.cur())
+
+#### simulate data for some covariates, holding others at their average value i.e. 0
+mDraws.sim = matrix(NA, nrow = nrow(dfData.pa), ncol=500)
+l = extract(fit.stan.pa)
+m = model.matrix(CD63.Act ~ ., data=dfData.pa[,-1])
+i = which(colnames(m) %in% c('(Intercept)', 'Peanut.Sp.Act', 'ISAC.Shannon', 'Peanut.Shannon', 'Age'))
+m[,-i] = 0
+for (i in 1:500){
+  p = sample(1:nrow(l$betas), 1)
+  mDraws.sim[,i] = simulateOne(l$betas[p,], 
+                               l$sigmaPop[p],
+                               l$nu[p],
+                               m)
+}
+
 
 
 ####### end model checks residuals
