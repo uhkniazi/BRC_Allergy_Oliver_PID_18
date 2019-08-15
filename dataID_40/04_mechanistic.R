@@ -21,7 +21,7 @@ library(rethinking)
 ########################################################
 ## choose the variable to model
 colnames(dfData.pa)
-cVar = 'Peanut.Shannon'
+cVar = 'total.IgE'
 ##### fit a lm
 fit.1.pa = lm(CD63.Act ~ ., data=dfData.pa[, c(cVar, 'CD63.Act')])
 summary(fit.1.pa)
@@ -29,7 +29,7 @@ summary(fit.1.pa)
 fit.1 <- quap(
   alist(
     CD63.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b1*Peanut.Shannon,
+    mu <- b0 + b1*total.IgE,
     b0 ~ dcauchy(0, 2),
     b1 ~ dnorm(0, 10),
     sigmaPop ~ dexp(1)
@@ -131,7 +131,7 @@ dfData.pa = dfData.pa[dfData.pa$CD63.Act > 0.01,]
 fit.1 <- quap(
   alist(
     CD63.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b1*Peanut.Shannon,
+    mu <- b0 + b1*total.IgE,
     b0 ~ dcauchy(0, 2),
     b1 ~ dnorm(0, 10),
     sigmaPop ~ dexp(1)
@@ -167,7 +167,7 @@ summary(fit.3)
 fit.4 <- quap(
   alist(
     CD63.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b1*Peanut.Shannon + b2*ISAC.Shannon + b3*Peanut.Sp.Act,
+    mu <- b0 + b1*total.IgE + b2*ISAC.Shannon + b3*Peanut.Sp.Act,
     b0 ~ dcauchy(0, 2),
     c(b1, b2, b3) ~ dnorm(0, 10),
     sigmaPop ~ dunif(1, 40)
@@ -176,7 +176,44 @@ fit.4 <- quap(
 )
 summary(fit.4)
 
-plot(coeftab(fit.1, fit.2, fit.3, fit.4), pars=c('b1', 'b2', 'b3'))
+fit.5 <- quap(
+  alist(
+    CD63.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*total.IgE + b2*ISAC.Shannon, #+ b3*Peanut.Sp.Act,
+    b0 ~ dcauchy(0, 2),
+    c(b1, b2) ~ dnorm(0, 10),
+    sigmaPop ~ dunif(1, 40)
+  ), data=dfData.pa,
+  start=list(b0=21, b1=0, b2=0)
+)
+summary(fit.5)
+
+fit.6 <- quap(
+  alist(
+    CD63.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*total.IgE + b3*Peanut.Sp.Act,
+    b0 ~ dcauchy(0, 2),
+    c(b1, b3) ~ dnorm(0, 10),
+    sigmaPop ~ dunif(1, 40)
+  ), data=dfData.pa,
+  start=list(b0=21, b1=0, b3=0)
+)
+summary(fit.6)
+
+fit.7 <- quap(
+  alist(
+    CD63.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b2*ISAC.Shannon + b3*Peanut.Sp.Act,
+    b0 ~ dcauchy(0, 2),
+    c(b2, b3) ~ dnorm(0, 10),
+    sigmaPop ~ dunif(1, 40)
+  ), data=dfData.pa,
+  start=list(b0=21, b2=0, b3=0)
+)
+summary(fit.7)
+
+
+plot(coeftab(fit.1, fit.2, fit.3, fit.4, fit.5, fit.6, fit.7), pars=c('b1', 'b2', 'b3'))
 
 cov2cor(vcov(fit.4))
 
