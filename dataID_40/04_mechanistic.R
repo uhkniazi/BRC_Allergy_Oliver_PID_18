@@ -21,7 +21,7 @@ library(rethinking)
 ########################################################
 ## choose the variable to model
 colnames(dfData.pa)
-cVar = 'Peanut.Sp.Act'
+cVar = 'Peanut.Shannon'
 ##### fit a lm
 fit.1.pa = lm(CD63.Act ~ ., data=dfData.pa[, c(cVar, 'CD63.Act')])
 summary(fit.1.pa)
@@ -29,9 +29,9 @@ summary(fit.1.pa)
 fit.1 <- quap(
   alist(
     CD63.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b1*Peanut.Sp.Act,
+    mu <- b0 + b1*Peanut.Shannon,
     b0 ~ dcauchy(0, 2),
-    b1 ~ dcauchy(0, 2),
+    b1 ~ dnorm(0, 10),
     sigmaPop ~ dexp(1)
   ), data=dfData.pa
 )
@@ -131,9 +131,9 @@ dfData.pa = dfData.pa[dfData.pa$CD63.Act > 0.01,]
 fit.1 <- quap(
   alist(
     CD63.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b1*Peanut.Sp.Act,
+    mu <- b0 + b1*Peanut.Shannon,
     b0 ~ dcauchy(0, 2),
-    b1 ~ dcauchy(0, 2),
+    b1 ~ dnorm(0, 10),
     sigmaPop ~ dexp(1)
   ), data=dfData.pa,
   start=list(b0=21)
@@ -143,29 +143,62 @@ summary(fit.1)
 fit.2 <- quap(
   alist(
     CD63.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b2*Age,
+    mu <- b0 + b2*ISAC.Shannon,
     b0 ~ dcauchy(0, 2),
-    b2 ~ dcauchy(0, 2),
+    b2 ~ dnorm(0, 10),
     sigmaPop ~ dexp(1)
   ), data=dfData.pa,
-  start=list(b0=21, b2=0)
+  start=list(b0=21)
 )
 summary(fit.2)
 
 fit.3 <- quap(
   alist(
     CD63.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b1*Peanut.Sp.Act + b2*Age,
+    mu <- b0 + b3*Peanut.Sp.Act,
     b0 ~ dcauchy(0, 2),
-    c(b1, b2) ~ dcauchy(0, 2),
-    sigmaPop ~ dunif(1, 40)
+    b3 ~ dnorm(0, 10),
+    sigmaPop ~ dexp(1)
   ), data=dfData.pa,
-  start=list(b0=21, b1=0, b2=0)
+  start=list(b0=21)
 )
 summary(fit.3)
 
-plot(coeftab(fit.1, fit.2, fit.3), pars=c('b1', 'b2'))
+fit.4 <- quap(
+  alist(
+    CD63.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*Peanut.Shannon + b2*ISAC.Shannon + b3*Peanut.Sp.Act,
+    b0 ~ dcauchy(0, 2),
+    c(b1, b2, b3) ~ dnorm(0, 10),
+    sigmaPop ~ dunif(1, 40)
+  ), data=dfData.pa,
+  start=list(b0=21, b1=0, b2=0, b3=0)
+)
+summary(fit.4)
 
+plot(coeftab(fit.1, fit.2, fit.3, fit.4), pars=c('b1', 'b2', 'b3'))
+
+cov2cor(vcov(fit.4))
+
+## simulate the DAGs
+# P.Sp.A -> P.Sh
+df.Sim = data.frame(1:100)
+df.Sim$Peanut.Sp.Act = rnorm(100)
+df.Sim$Peanut.Shannon = rnorm(100, df.Sim$Peanut.Sp.Act)
+df.Sim$ISAC.Shannon = rnorm(100)
+df.Sim$CD63.Act = rnorm(100, df.Sim$Peanut.Sp.Act + df.Sim$Peanut.Shannon + df.Sim$ISAC.Shannon)
+str(df.Sim)
+
+fit.5 <- quap(
+  alist(
+    CD63.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*Peanut.Shannon + b2*ISAC.Shannon + b3*Peanut.Sp.Act,
+    b0 ~ dcauchy(0, 2),
+    c(b1, b2, b3) ~ dnorm(0, 10),
+    sigmaPop ~ dunif(1, 40)
+  ), data=df.Sim,
+  start=list(b0=21, b1=0, b2=0, b3=0)
+)
+summary(fit.5)
+dfData.pa = df.Sim
 dfData.pa = dfData.pa.bk
-
-
