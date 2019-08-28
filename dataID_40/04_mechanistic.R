@@ -321,6 +321,86 @@ colnames(s2) = c(colnames(lStanData$X))
 dim(s2)
 pairs(s2[sample(1:nrow(s2), 1000),], pch=20, col='grey', cex=0.5, main='PA')
 
+############################################### check behaviour of other subset of predictors
+colnames(dfData.pa)
+pairs(dfData.pa[,-1])
+fit.1 <- quap(
+  alist(
+    Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*Ara.h.2.Sp.Act + b2*Ara.h.6.Sp.Act,
+    b0 ~ dcauchy(0, 2),
+    c(b1, b2) ~ dnorm(0, 10),
+    sigmaPop ~ dexp(1)
+  ), data=dfData.pa,
+  start=list(b0=0)
+)
+summary(fit.1)
+precis(fit.1)
+post = extract.samples(fit.1, n=1000)
+dim(post)
+head(post)
+precis(post)
+
+plot(coeftab(fit.1), pars=c('b1', 'b2'))
+cov2cor(vcov(fit.1))
+pairs(post)
+
+fit.2 <- quap(
+  alist(
+    Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*Ara.h.2.Sp.Act,
+    b0 ~ dcauchy(0, 2),
+    c(b1) ~ dnorm(0, 10),
+    sigmaPop ~ dexp(1)
+  ), data=dfData.pa,
+  start=list(b0=0)
+)
+summary(fit.2)
+
+fit.3 <- quap(
+  alist(
+    Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b2*Ara.h.6.Sp.Act,
+    b0 ~ dcauchy(0, 2),
+    c(b2) ~ dnorm(0, 10),
+    sigmaPop ~ dexp(1)
+  ), data=dfData.pa,
+  start=list(b0=0)
+)
+summary(fit.3)
+
+plot(coeftab(fit.1, fit.2, fit.3), pars=c('b1', 'b2'))
+
+## posterior prediction plots
+mu.1 = link(fit.1)
+mu.1.pi = apply(mu.1, 2, PI)
+plot(colMeans(mu.1) ~ dfData.pa$Peanut.Sp.Act, ylim=range(mu.1.pi))
+abline(0, 1)
+for (i in 1:nrow(dfData.pa)) lines(rep(dfData.pa$Peanut.Sp.Act[i], 2), mu.1.pi[,i])
+r = dfData.pa$Peanut.Sp.Act - colMeans(mu.1)
+plot(r ~ colMeans(mu.1))
+lines(lowess(r ~ colMeans(mu.1)))
+
+## second model
+mu.1 = link(fit.2)
+mu.1.pi = apply(mu.1, 2, PI)
+plot(colMeans(mu.1) ~ dfData.pa$Peanut.Sp.Act, ylim=range(mu.1.pi))
+abline(0, 1)
+for (i in 1:nrow(dfData.pa)) lines(rep(dfData.pa$Peanut.Sp.Act[i], 2), mu.1.pi[,i])
+r = dfData.pa$Peanut.Sp.Act - colMeans(mu.1)
+plot(r ~ colMeans(mu.1))
+lines(lowess(r ~ colMeans(mu.1)))
+
+## third model
+mu.1 = link(fit.3)
+mu.1.pi = apply(mu.1, 2, PI)
+plot(colMeans(mu.1) ~ dfData.pa$Peanut.Sp.Act, ylim=range(mu.1.pi))
+abline(0, 1)
+for (i in 1:nrow(dfData.pa)) lines(rep(dfData.pa$Peanut.Sp.Act[i], 2), mu.1.pi[,i])
+r = dfData.pa$Peanut.Sp.Act - colMeans(mu.1)
+plot(r ~ colMeans(mu.1))
+lines(lowess(r ~ colMeans(mu.1)))
+
 
 # ## simulate the DAGs
 # # P.Sp.A -> P.Sh
