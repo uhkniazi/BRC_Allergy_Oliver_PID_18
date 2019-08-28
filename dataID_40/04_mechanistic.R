@@ -424,8 +424,9 @@ plot(coeftab(fit.4))
 df.Sim = data.frame(1:100)
 df.Sim$Ara.h.2.Sp.Act = rnorm(100)
 df.Sim$Ara.h.6.Sp.Act = rnorm(100)
-s = sim(fit.1, data = df.Sim, n = 100)
-df.Sim$Peanut.Sp.Act = colMeans(s)
+# s = sim(fit.1, data = df.Sim, n = 100)
+# df.Sim$Peanut.Sp.Act = colMeans(s)
+df.Sim$Peanut.Sp.Act = rnorm(100, 0.71*df.Sim$Ara.h.2.Sp.Act + 0.27*df.Sim$Ara.h.6.Sp.Act)
 
 fit.sim <- quap(
   alist(
@@ -440,11 +441,13 @@ fit.sim <- quap(
 
 plot(coeftab(fit.1, fit.sim))
 ## simulate new response variable
-s = sim(fit.4, data=df.Sim, n=100)
-#df.Sim$Peanut.Shannon = rnorm(100, df.Sim$Peanut.Sp.Act)
-#df.Sim$ISAC.Shannon = rnorm(100)
-df.Sim$CD63.Act = colMeans(s)
-str(df.Sim)
+# s = sim(fit.4, data=df.Sim, n=100)
+# #df.Sim$Peanut.Shannon = rnorm(100, df.Sim$Peanut.Sp.Act)
+# #df.Sim$ISAC.Shannon = rnorm(100)
+# df.Sim$CD63.Act = colMeans(s)
+# str(df.Sim)
+summary(fit.4)
+df.Sim$CD63.Act = rnorm(100, 0.58*df.Sim$Peanut.Sp.Act)
 
 fit.sim <- quap(
   alist(
@@ -458,8 +461,52 @@ fit.sim <- quap(
 )
 summary(fit.sim)
 
-plot(coeftab(fit.4, fit.sim))
+plot(coeftab(fit.4, fit.sim), pars=c('b1'))
 
+###################### add another variable to the simulation
+## find the coefficient first for new variable
+fit.5 <- quap(
+  alist(
+    CD63.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b2*ISAC.Shannon,
+    b0 ~ dcauchy(0, 2),
+    c(b2) ~ dnorm(0, 1),
+    sigmaPop ~ dexp(1)
+  ), data=dfData.pa,
+  start=list(b0=0)
+)
+summary(fit.5)
+df.Sim$ISAC.Shannon = rnorm(100)
+df.Sim$CD63.Act = rnorm(100, 0.58*df.Sim$Peanut.Sp.Act + 0.38*df.Sim$ISAC.Shannon)
+
+fit.sim <- quap(
+  alist(
+    CD63.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*Peanut.Sp.Act + b2*ISAC.Shannon,
+    b0 ~ dcauchy(0, 2),
+    c(b1, b2) ~ dnorm(0, 1),
+    sigmaPop ~ dexp(1)
+  ), data=df.Sim,
+  start=list(b0=0)
+)
+summary(fit.sim)
+
+plot(coeftab(fit.4, fit.5, fit.sim), pars=c('b1', 'b2'))
+
+## multivariate model on actual data
+fit.6 <- quap(
+  alist(
+    CD63.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b2*ISAC.Shannon + b1*Peanut.Sp.Act,
+    b0 ~ dcauchy(0, 2),
+    c(b1, b2) ~ dnorm(0, 1),
+    sigmaPop ~ dexp(1)
+  ), data=dfData.pa,
+  start=list(b0=0)
+)
+summary(fit.6)
+
+plot(coeftab(fit.4, fit.5, fit.sim, fit.6), pars=c('b1', 'b2'))
 # fit.5 <- quap(
 #   alist(
 #     CD63.Act ~ dnorm(mu, sigmaPop),
