@@ -216,6 +216,7 @@ summary(fit.7)
 plot(coeftab(fit.1, fit.2, fit.3, fit.4, fit.5, fit.6, fit.7), pars=c('b1', 'b2', 'b3'))
 
 cov2cor(vcov(fit.4))
+apply(list(fit.1, fit.2, fit.3, fit.4, fit.5, fit.6, fit.7), function(m) sum(lppd(m)))
 
 dfData.pa = dfData.pa.bk
 
@@ -239,7 +240,7 @@ print(fit.stan.pa, c('betas', 'sigmaPop', 'nu'), digits=3)
 
 traceplot(fit.stan.pa, c('betas'))
 
-betas.pa = extract(fit.stan.pa, 'betas')$betas
+betas.pa = extract(fit.stan.pa)$betas
 colnames(betas.pa) = c('b0', 'b1', 'b2')
 dim(betas.pa)
 precis(as.data.frame(betas.pa))
@@ -264,17 +265,6 @@ shade(mu.hpdi, iGrid)
 ############### new simulated data
 ###############
 ### generate some posterior predictive data
-## generate random samples from alternative t-distribution parameterization
-## see https://grollchristian.wordpress.com/2013/04/30/students-t-location-scale/
-rt_ls <- function(n, df, mu, a) rt(n,df)*a + mu
-## follow the algorithm in section 14.3 page 363 in Gelman 2013
-simulateOne = function(betas, sigma, nu, mModMatrix){
-  f = mModMatrix %*% betas
-  yrep = rt_ls(length(f), nu, f,  sigma)
-  # censor the values below detection limit
-  yrep[yrep <= 0.01] = 0.01
-  return(yrep)
-}
 
 ## sample n values, 1000 times
 mDraws.sim = matrix(NA, nrow = length(iGrid), ncol=300)
@@ -309,19 +299,6 @@ mu.hpdi = apply(mFitted, 2, HPDI)
 shade(mu.hpdi, iGrid)
 
 ############### new simulated data
-###############
-### generate some posterior predictive data
-## generate random samples from alternative t-distribution parameterization
-## see https://grollchristian.wordpress.com/2013/04/30/students-t-location-scale/
-rt_ls <- function(n, df, mu, a) rt(n,df)*a + mu
-## follow the algorithm in section 14.3 page 363 in Gelman 2013
-simulateOne = function(betas, sigma, nu, mModMatrix){
-  f = mModMatrix %*% betas
-  yrep = rt_ls(length(f), nu, f,  sigma)
-  # censor the values below detection limit
-  yrep[yrep <= 0.01] = 0.01
-  return(yrep)
-}
 
 ## sample n values, 1000 times
 mDraws.sim = matrix(NA, nrow = length(iGrid), ncol=300)
