@@ -323,13 +323,17 @@ pairs(s2[sample(1:nrow(s2), 1000),], pch=20, col='grey', cex=0.5, main='PA')
 
 ############################################### check behaviour of other subset of predictors
 colnames(dfData.pa)
-pairs(dfData.pa[,-1])
+dfData.pa = dfData.pa[,-1]
+dfData.pa = apply(dfData.pa, 2, scale)
+str(dfData.pa)
+dfData.pa = data.frame(dfData.pa)
+pairs(dfData.pa)
 fit.1 <- quap(
   alist(
     Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
     mu <- b0 + b1*Ara.h.2.Sp.Act + b2*Ara.h.6.Sp.Act,
     b0 ~ dcauchy(0, 2),
-    c(b1, b2) ~ dnorm(0, 10),
+    c(b1, b2) ~ dnorm(0, 1),
     sigmaPop ~ dexp(1)
   ), data=dfData.pa,
   start=list(b0=0)
@@ -350,7 +354,7 @@ fit.2 <- quap(
     Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
     mu <- b0 + b1*Ara.h.2.Sp.Act,
     b0 ~ dcauchy(0, 2),
-    c(b1) ~ dnorm(0, 10),
+    c(b1) ~ dnorm(0, 1),
     sigmaPop ~ dexp(1)
   ), data=dfData.pa,
   start=list(b0=0)
@@ -362,7 +366,7 @@ fit.3 <- quap(
     Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
     mu <- b0 + b2*Ara.h.6.Sp.Act,
     b0 ~ dcauchy(0, 2),
-    c(b2) ~ dnorm(0, 10),
+    c(b2) ~ dnorm(0, 1),
     sigmaPop ~ dexp(1)
   ), data=dfData.pa,
   start=list(b0=0)
@@ -401,16 +405,61 @@ r = dfData.pa$Peanut.Sp.Act - colMeans(mu.1)
 plot(r ~ colMeans(mu.1))
 lines(lowess(r ~ colMeans(mu.1)))
 
+## new model with actual response vs predictor
+fit.4 <- quap(
+  alist(
+    CD63.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*Peanut.Sp.Act,
+    b0 ~ dcauchy(0, 2),
+    c(b1) ~ dnorm(0, 1),
+    sigmaPop ~ dexp(1)
+  ), data=dfData.pa,
+  start=list(b0=0)
+)
+summary(fit.4)
+plot(coeftab(fit.4))
 
-# ## simulate the DAGs
-# # P.Sp.A -> P.Sh
-# df.Sim = data.frame(1:100)
-# df.Sim$Peanut.Sp.Act = rnorm(100)
-# df.Sim$Peanut.Shannon = rnorm(100, df.Sim$Peanut.Sp.Act)
-# df.Sim$ISAC.Shannon = rnorm(100)
-# df.Sim$CD63.Act = rnorm(100, df.Sim$Peanut.Sp.Act + df.Sim$Peanut.Shannon + df.Sim$ISAC.Shannon)
-# str(df.Sim)
-# 
+## simulate the DAGs
+# P.Sp.A -> P.Sh
+df.Sim = data.frame(1:100)
+df.Sim$Ara.h.2.Sp.Act = rnorm(100)
+df.Sim$Ara.h.6.Sp.Act = rnorm(100)
+s = sim(fit.1, data = df.Sim, n = 100)
+df.Sim$Peanut.Sp.Act = colMeans(s)
+
+fit.sim <- quap(
+  alist(
+    Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*Ara.h.2.Sp.Act + b2*Ara.h.6.Sp.Act,
+    b0 ~ dcauchy(0, 2),
+    c(b1, b2) ~ dnorm(0, 1),
+    sigmaPop ~ dexp(1)
+  ), data=df.Sim,
+  start=list(b0=0)
+)
+
+plot(coeftab(fit.1, fit.sim))
+## simulate new response variable
+s = sim(fit.4, data=df.Sim, n=100)
+#df.Sim$Peanut.Shannon = rnorm(100, df.Sim$Peanut.Sp.Act)
+#df.Sim$ISAC.Shannon = rnorm(100)
+df.Sim$CD63.Act = colMeans(s)
+str(df.Sim)
+
+fit.sim <- quap(
+  alist(
+    CD63.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*Peanut.Sp.Act,
+    b0 ~ dcauchy(0, 2),
+    c(b1) ~ dnorm(0, 1),
+    sigmaPop ~ dexp(1)
+  ), data=df.Sim,
+  start=list(b0=0)
+)
+summary(fit.sim)
+
+plot(coeftab(fit.4, fit.sim))
+
 # fit.5 <- quap(
 #   alist(
 #     CD63.Act ~ dnorm(mu, sigmaPop),
@@ -421,6 +470,6 @@ lines(lowess(r ~ colMeans(mu.1)))
 #   ), data=df.Sim,
 #   start=list(b0=21, b1=0, b2=0, b3=0)
 # )
-# summary(fit.5)
-# dfData.pa = df.Sim
-# dfData.pa = dfData.pa.bk
+summary(fit.5)
+dfData.pa = df.Sim
+dfData.pa = dfData.pa.bk
