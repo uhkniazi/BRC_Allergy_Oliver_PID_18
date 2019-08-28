@@ -421,12 +421,13 @@ plot(coeftab(fit.4))
 
 ## simulate the DAGs
 # P.Sp.A -> P.Sh
-df.Sim = data.frame(1:100)
-df.Sim$Ara.h.2.Sp.Act = rnorm(100)
-df.Sim$Ara.h.6.Sp.Act = rnorm(100)
+nsim = 1000
+df.Sim = data.frame(1:nsim)
+df.Sim$Ara.h.2.Sp.Act = rnorm(nsim)
+df.Sim$Ara.h.6.Sp.Act = rnorm(nsim)
 # s = sim(fit.1, data = df.Sim, n = 100)
 # df.Sim$Peanut.Sp.Act = colMeans(s)
-df.Sim$Peanut.Sp.Act = rnorm(100, 0.71*df.Sim$Ara.h.2.Sp.Act + 0.27*df.Sim$Ara.h.6.Sp.Act)
+df.Sim$Peanut.Sp.Act = rnorm(nsim, 0.71*df.Sim$Ara.h.2.Sp.Act + 0.27*df.Sim$Ara.h.6.Sp.Act)
 
 fit.sim <- quap(
   alist(
@@ -447,7 +448,7 @@ plot(coeftab(fit.1, fit.sim))
 # df.Sim$CD63.Act = colMeans(s)
 # str(df.Sim)
 summary(fit.4)
-df.Sim$CD63.Act = rnorm(100, 0.58*df.Sim$Peanut.Sp.Act)
+df.Sim$CD63.Act = rnorm(nsim, 0.58*df.Sim$Peanut.Sp.Act)
 
 fit.sim <- quap(
   alist(
@@ -476,8 +477,8 @@ fit.5 <- quap(
   start=list(b0=0)
 )
 summary(fit.5)
-df.Sim$ISAC.Shannon = rnorm(100)
-df.Sim$CD63.Act = rnorm(100, 0.58*df.Sim$Peanut.Sp.Act + 0.38*df.Sim$ISAC.Shannon)
+df.Sim$ISAC.Shannon = rnorm(nsim)
+df.Sim$CD63.Act = rnorm(nsim, 0.58*df.Sim$Peanut.Sp.Act + 0.38*df.Sim$ISAC.Shannon)
 
 fit.sim <- quap(
   alist(
