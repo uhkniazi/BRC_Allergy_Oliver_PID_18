@@ -131,7 +131,7 @@ dfData.pa = dfData.pa[dfData.pa$CD63.Act > 0.01,]
 fit.1 <- quap(
   alist(
     CD63.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b1*Ara.h.2.Sp.Act,
+    mu <- b0 + b1*f13.Peanut,
     b0 ~ dcauchy(0, 2),
     b1 ~ dnorm(0, 10),
     sigmaPop ~ dexp(1)
@@ -167,7 +167,7 @@ summary(fit.3)
 fit.4 <- quap(
   alist(
     CD63.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b1*Ara.h.2.Sp.Act + b2*ISAC.Shannon + b3*Peanut.Sp.Act,
+    mu <- b0 + b1*f13.Peanut + b2*ISAC.Shannon + b3*Peanut.Sp.Act,
     b0 ~ dcauchy(0, 2),
     c(b1, b2, b3) ~ dnorm(0, 10),
     sigmaPop ~ dunif(1, 40)
@@ -213,17 +213,17 @@ fit.7 <- quap(
 summary(fit.7)
 
 
-plot(coeftab(fit.1, fit.2, fit.3, fit.4, fit.5, fit.6, fit.7), pars=c('b1', 'b2', 'b3'))
+plot(coeftab(fit.1, fit.2, fit.3, fit.4), pars=c('b1', 'b2', 'b3'))
 
 cov2cor(vcov(fit.4))
-apply(list(fit.1, fit.2, fit.3, fit.4, fit.5, fit.6, fit.7), function(m) sum(lppd(m)))
+sapply(list(fit.1, fit.2, fit.3, fit.4), function(m) sum(lppd(m)))
 
 dfData.pa = dfData.pa.bk
 
 ###################################
 ####### multivariate censored model
 ## model dataset PA
-cVar = c('ISAC.Shannon', 'Peanut.Sp.Act')
+cVar = c('f13.Peanut', 'Peanut.Sp.Act', 'ISAC.Shannon')
 m = model.matrix(CD63.Act ~ ., data=dfData.pa[dfData.pa$CD63.Act > 0.01, c(cVar, 'CD63.Act')])
 m2 = model.matrix(CD63.Act ~ ., data=dfData.pa[dfData.pa$CD63.Act <= 0.01, c(cVar, 'CD63.Act')])
 
@@ -241,7 +241,7 @@ print(fit.stan.pa, c('betas', 'sigmaPop', 'nu'), digits=3)
 traceplot(fit.stan.pa, c('betas'))
 
 betas.pa = extract(fit.stan.pa)$betas
-colnames(betas.pa) = c('b0', 'b1', 'b2')
+colnames(betas.pa) = c('b0', 'b1', 'b2', 'b3')
 dim(betas.pa)
 precis(as.data.frame(betas.pa))
 
@@ -321,7 +321,23 @@ colnames(s2) = c(colnames(lStanData$X))
 dim(s2)
 pairs(s2[sample(1:nrow(s2), 1000),], pch=20, col='grey', cex=0.5, main='PA')
 
+## posterior predictive values vs actual data
+mGrid = model.matrix(CD63.Act ~ ., data=dfData.pa[, c(cVar, 'CD63.Act')])
+mFitted = t(mGrid %*% t(betas.pa))
+dim(mFitted)
+mu.1 = mFitted
+mu.1.pi = apply(mu.1, 2, PI)
+plot(colMeans(mu.1) ~ dfData.pa$CD63.Act, ylim=range(mu.1.pi))
+abline(0, 1)
+for (i in 1:nrow(dfData.pa)) lines(rep(dfData.pa$CD63.Act[i], 2), mu.1.pi[,i])
+r = dfData.pa$CD63.Act - colMeans(mu.1)
+plot(r ~ colMeans(mu.1))
+lines(lowess(r ~ colMeans(mu.1)))
+
+
+##############################################################################################
 ############################################### check behaviour of other subset of predictors
+##############################################################################################
 colnames(dfData.pa)
 dfData.pa = dfData.pa[,-1]
 dfData.pa = apply(dfData.pa, 2, scale)
@@ -330,10 +346,10 @@ dfData.pa = data.frame(dfData.pa)
 pairs(dfData.pa)
 fit.1 <- quap(
   alist(
-    Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b1*Ara.h.2.Sp.Act + b2*Ara.h.6.Sp.Act,
+    f13.Peanut ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*f422.rAra.h.1 + b2*f423.Ara.h.2 + b3*f424.rAra.h.3 + b4*f423.nAra.H.6,
     b0 ~ dcauchy(0, 2),
-    c(b1, b2) ~ dnorm(0, 1),
+    c(b1, b2, b3, b4) ~ dnorm(0, 1),
     sigmaPop ~ dexp(1)
   ), data=dfData.pa,
   start=list(b0=0)
@@ -345,65 +361,65 @@ dim(post)
 head(post)
 precis(post)
 
-plot(coeftab(fit.1), pars=c('b1', 'b2'))
+plot(coeftab(fit.1), pars=c('b1', 'b2', 'b3', 'b4'))
 cov2cor(vcov(fit.1))
 pairs(post)
 
-fit.2 <- quap(
-  alist(
-    Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b1*Ara.h.2.Sp.Act,
-    b0 ~ dcauchy(0, 2),
-    c(b1) ~ dnorm(0, 1),
-    sigmaPop ~ dexp(1)
-  ), data=dfData.pa,
-  start=list(b0=0)
-)
-summary(fit.2)
-
-fit.3 <- quap(
-  alist(
-    Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b2*Ara.h.6.Sp.Act,
-    b0 ~ dcauchy(0, 2),
-    c(b2) ~ dnorm(0, 1),
-    sigmaPop ~ dexp(1)
-  ), data=dfData.pa,
-  start=list(b0=0)
-)
-summary(fit.3)
-
-plot(coeftab(fit.1, fit.2, fit.3), pars=c('b1', 'b2'))
+# fit.2 <- quap(
+#   alist(
+#     Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
+#     mu <- b0 + b1*Ara.h.2.Sp.Act,
+#     b0 ~ dcauchy(0, 2),
+#     c(b1) ~ dnorm(0, 1),
+#     sigmaPop ~ dexp(1)
+#   ), data=dfData.pa,
+#   start=list(b0=0)
+# )
+# summary(fit.2)
+# 
+# fit.3 <- quap(
+#   alist(
+#     Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
+#     mu <- b0 + b2*Ara.h.6.Sp.Act,
+#     b0 ~ dcauchy(0, 2),
+#     c(b2) ~ dnorm(0, 1),
+#     sigmaPop ~ dexp(1)
+#   ), data=dfData.pa,
+#   start=list(b0=0)
+# )
+# summary(fit.3)
+# 
+# plot(coeftab(fit.1, fit.2, fit.3), pars=c('b1', 'b2'))
 
 ## posterior prediction plots
 mu.1 = link(fit.1)
 mu.1.pi = apply(mu.1, 2, PI)
-plot(colMeans(mu.1) ~ dfData.pa$Peanut.Sp.Act, ylim=range(mu.1.pi))
+plot(colMeans(mu.1) ~ dfData.pa$f13.Peanut, ylim=range(mu.1.pi))
 abline(0, 1)
-for (i in 1:nrow(dfData.pa)) lines(rep(dfData.pa$Peanut.Sp.Act[i], 2), mu.1.pi[,i])
-r = dfData.pa$Peanut.Sp.Act - colMeans(mu.1)
+for (i in 1:nrow(dfData.pa)) lines(rep(dfData.pa$f13.Peanut[i], 2), mu.1.pi[,i])
+r = dfData.pa$f13.Peanut - colMeans(mu.1)
 plot(r ~ colMeans(mu.1))
 lines(lowess(r ~ colMeans(mu.1)))
 
-## second model
-mu.1 = link(fit.2)
-mu.1.pi = apply(mu.1, 2, PI)
-plot(colMeans(mu.1) ~ dfData.pa$Peanut.Sp.Act, ylim=range(mu.1.pi))
-abline(0, 1)
-for (i in 1:nrow(dfData.pa)) lines(rep(dfData.pa$Peanut.Sp.Act[i], 2), mu.1.pi[,i])
-r = dfData.pa$Peanut.Sp.Act - colMeans(mu.1)
-plot(r ~ colMeans(mu.1))
-lines(lowess(r ~ colMeans(mu.1)))
-
-## third model
-mu.1 = link(fit.3)
-mu.1.pi = apply(mu.1, 2, PI)
-plot(colMeans(mu.1) ~ dfData.pa$Peanut.Sp.Act, ylim=range(mu.1.pi))
-abline(0, 1)
-for (i in 1:nrow(dfData.pa)) lines(rep(dfData.pa$Peanut.Sp.Act[i], 2), mu.1.pi[,i])
-r = dfData.pa$Peanut.Sp.Act - colMeans(mu.1)
-plot(r ~ colMeans(mu.1))
-lines(lowess(r ~ colMeans(mu.1)))
+# ## second model
+# mu.1 = link(fit.2)
+# mu.1.pi = apply(mu.1, 2, PI)
+# plot(colMeans(mu.1) ~ dfData.pa$Peanut.Sp.Act, ylim=range(mu.1.pi))
+# abline(0, 1)
+# for (i in 1:nrow(dfData.pa)) lines(rep(dfData.pa$Peanut.Sp.Act[i], 2), mu.1.pi[,i])
+# r = dfData.pa$Peanut.Sp.Act - colMeans(mu.1)
+# plot(r ~ colMeans(mu.1))
+# lines(lowess(r ~ colMeans(mu.1)))
+# 
+# ## third model
+# mu.1 = link(fit.3)
+# mu.1.pi = apply(mu.1, 2, PI)
+# plot(colMeans(mu.1) ~ dfData.pa$Peanut.Sp.Act, ylim=range(mu.1.pi))
+# abline(0, 1)
+# for (i in 1:nrow(dfData.pa)) lines(rep(dfData.pa$Peanut.Sp.Act[i], 2), mu.1.pi[,i])
+# r = dfData.pa$Peanut.Sp.Act - colMeans(mu.1)
+# plot(r ~ colMeans(mu.1))
+# lines(lowess(r ~ colMeans(mu.1)))
 
 ## new model with actual response vs predictor
 fit.4 <- quap(
