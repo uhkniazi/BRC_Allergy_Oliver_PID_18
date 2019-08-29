@@ -223,7 +223,7 @@ dfData.pa = dfData.pa.bk
 ###################################
 ####### multivariate censored model
 ## model dataset PA
-cVar = c('f13.Peanut', 'Peanut.Sp.Act', 'ISAC.Shannon')
+cVar = c('f13.Peanut', 'f422.rAra.h.1', 'f423.Ara.h.2', 'f424.rAra.h.3', 'f423.nAra.H.6')
 m = model.matrix(CD63.Act ~ ., data=dfData.pa[dfData.pa$CD63.Act > 0.01, c(cVar, 'CD63.Act')])
 m2 = model.matrix(CD63.Act ~ ., data=dfData.pa[dfData.pa$CD63.Act <= 0.01, c(cVar, 'CD63.Act')])
 
@@ -241,7 +241,7 @@ print(fit.stan.pa, c('betas', 'sigmaPop', 'nu'), digits=3)
 traceplot(fit.stan.pa, c('betas'))
 
 betas.pa = extract(fit.stan.pa)$betas
-colnames(betas.pa) = c('b0', 'b1', 'b2', 'b3')
+colnames(betas.pa) = c('b0', 'b1', 'b2', 'b3', 'b4', 'b5')
 dim(betas.pa)
 precis(as.data.frame(betas.pa))
 
@@ -253,7 +253,7 @@ abline(a = mean(betas.pa[,'b0']), b= mean(betas.pa[,'b1']), col='red')
 
 i = range(dfData.pa[,cVar[1]])
 iGrid = seq(i[1], i[2], length.out = 50)
-mGrid = cbind(1, iGrid, 0)
+mGrid = cbind(1, iGrid, 0, 0, 0, 0)
 mFitted = t(mGrid %*% t(betas.pa))
 dim(mFitted)
 
@@ -365,6 +365,31 @@ plot(coeftab(fit.1), pars=c('b1', 'b2', 'b3', 'b4'))
 cov2cor(vcov(fit.1))
 pairs(post)
 
+fit.1.cd <- quap(
+  alist(
+    CD63.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*f422.rAra.h.1 + b2*f423.Ara.h.2 + b3*f424.rAra.h.3 + b4*f423.nAra.H.6 + b5*f13.Peanut,
+    b0 ~ dcauchy(0, 2),
+    c(b1, b2, b3, b4, b5) ~ dnorm(0, 1),
+    sigmaPop ~ dexp(1)
+  ), data=dfData.pa,
+  start=list(b0=0)
+)
+summary(fit.1.cd)
+
+fit.2.cd <- quap(
+  alist(
+    CD63.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*f422.rAra.h.1 + b2*f423.Ara.h.2 + b3*f424.rAra.h.3 + b4*f423.nAra.H.6,
+    b0 ~ dcauchy(0, 2),
+    c(b1, b2, b3, b4) ~ dnorm(0, 1),
+    sigmaPop ~ dexp(1)
+  ), data=dfData.pa,
+  start=list(b0=0)
+)
+summary(fit.2.cd)
+
+
 # fit.2 <- quap(
 #   alist(
 #     Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
@@ -425,7 +450,7 @@ lines(lowess(r ~ colMeans(mu.1)))
 fit.4 <- quap(
   alist(
     CD63.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b1*Peanut.Sp.Act,
+    mu <- b0 + b1*f13.Peanut,
     b0 ~ dcauchy(0, 2),
     c(b1) ~ dnorm(0, 1),
     sigmaPop ~ dexp(1)
@@ -439,24 +464,39 @@ plot(coeftab(fit.4))
 # P.Sp.A -> P.Sh
 nsim = 1000
 df.Sim = data.frame(1:nsim)
-df.Sim$Ara.h.2.Sp.Act = rnorm(nsim)
-df.Sim$Ara.h.6.Sp.Act = rnorm(nsim)
+df.Sim$f422.rAra.h.1 = rnorm(nsim)
+df.Sim$f423.Ara.h.2 = rnorm(nsim)
+df.Sim$f424.rAra.h.3 = rnorm(nsim)
+df.Sim$f423.nAra.H.6 = rnorm(nsim)
 # s = sim(fit.1, data = df.Sim, n = 100)
 # df.Sim$Peanut.Sp.Act = colMeans(s)
-df.Sim$Peanut.Sp.Act = rnorm(nsim, 0.71*df.Sim$Ara.h.2.Sp.Act + 0.27*df.Sim$Ara.h.6.Sp.Act)
+m = cbind(1, as.matrix(df.Sim[,2:5]))
+m = m %*% coef(fit.1)[-1]
+df.Sim$f13.Peanut = rnorm(nsim, m)
 
-fit.sim <- quap(
+# fit.sim <- quap(
+#   alist(
+#     Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
+#     mu <- b0 + b1*Ara.h.2.Sp.Act + b2*Ara.h.6.Sp.Act,
+#     b0 ~ dcauchy(0, 2),
+#     c(b1, b2) ~ dnorm(0, 1),
+#     sigmaPop ~ dexp(1)
+#   ), data=df.Sim,
+#   start=list(b0=0)
+# )
+
+fit.1.sim <- quap(
   alist(
-    Peanut.Sp.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b1*Ara.h.2.Sp.Act + b2*Ara.h.6.Sp.Act,
+    f13.Peanut ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*f422.rAra.h.1 + b2*f423.Ara.h.2 + b3*f424.rAra.h.3 + b4*f423.nAra.H.6,
     b0 ~ dcauchy(0, 2),
-    c(b1, b2) ~ dnorm(0, 1),
+    c(b1, b2, b3, b4) ~ dnorm(0, 1),
     sigmaPop ~ dexp(1)
   ), data=df.Sim,
   start=list(b0=0)
 )
 
-plot(coeftab(fit.1, fit.sim))
+plot(coeftab(fit.1, fit.1.sim))
 ## simulate new response variable
 # s = sim(fit.4, data=df.Sim, n=100)
 # #df.Sim$Peanut.Shannon = rnorm(100, df.Sim$Peanut.Sp.Act)
@@ -464,22 +504,33 @@ plot(coeftab(fit.1, fit.sim))
 # df.Sim$CD63.Act = colMeans(s)
 # str(df.Sim)
 summary(fit.4)
-df.Sim$CD63.Act = rnorm(nsim, 0.58*df.Sim$Peanut.Sp.Act)
+df.Sim$CD63.Act = rnorm(nsim, 0.61*df.Sim$f13.Peanut)
 
-fit.sim <- quap(
+# fit.sim <- quap(
+#   alist(
+#     CD63.Act ~ dnorm(mu, sigmaPop),
+#     mu <- b0 + b1*Peanut.Sp.Act,
+#     b0 ~ dcauchy(0, 2),
+#     c(b1) ~ dnorm(0, 1),
+#     sigmaPop ~ dexp(1)
+#   ), data=df.Sim,
+#   start=list(b0=0)
+# )
+# summary(fit.sim)
+fit.4.sim <- quap(
   alist(
     CD63.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b1*Peanut.Sp.Act,
+    mu <- b0 + b1*f13.Peanut,
     b0 ~ dcauchy(0, 2),
     c(b1) ~ dnorm(0, 1),
     sigmaPop ~ dexp(1)
   ), data=df.Sim,
   start=list(b0=0)
 )
-summary(fit.sim)
 
-plot(coeftab(fit.4, fit.sim), pars=c('b1'))
 
+plot(coeftab(fit.4, fit.4.sim), pars=c('b1'))
+plot(coeftab(fit.4, fit.4.sim))
 ###################### add another variable to the simulation
 ## find the coefficient first for new variable
 fit.5 <- quap(
