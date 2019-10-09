@@ -89,3 +89,10 @@ shannon <- function(x) {
   (-sum(p * log(p)))
   
 }
+
+
+### binning the variable into categories
+f_binData = function(x, m=0, m2=0.3, b=4, lab=c(0, 1, 2)){
+  br = c(m, seq(m2, max(x), length.out = b-1))
+  return(cut(x, breaks = br, right = T, include.lowest = T, labels = lab))
+}
