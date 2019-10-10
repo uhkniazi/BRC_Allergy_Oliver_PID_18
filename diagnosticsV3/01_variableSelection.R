@@ -19,22 +19,28 @@ q = paste0('select MetaFile.* from MetaFile
 dfSample = dbGetQuery(db, q)
 dfSample
 n = paste0(dfSample$location, dfSample$name)
-dfData = read.csv(n[4], header=T)
+dfData = read.csv(n[1], header=T)
 
 # close connection after getting data
 dbDisconnect(db)
-
+dfData = na.omit(dfData)
 dim(dfData)
 str(dfData)
 levels(dfData$Allergic.Status)
 dfData$Allergic.Status = gsub(' ', '', as.character(dfData$Allergic.Status))
 dfData$Allergic.Status = factor(dfData$Allergic.Status, levels = c('PS', 'PA'))
 levels(dfData$Allergic.Status)
+## hold back only the Ara variables
+dfData.all = dfData
+load(file.choose())
+dfData = dfData[!(dfData$Patient %in% cvOutliers.PA), ]
 ## make count matrix
 mData = as.matrix(dfData[,-c(1:2)])
 dfSample = dfData[,1:2]
 rownames(mData) = as.character(dfSample$Patient)
 str(dfSample)
+i = grep('Ara', colnames(mData))
+mData = mData[,i]
 #
 lData.train = list(data=mData, covariates=dfSample)
 rm(dfData)
@@ -54,10 +60,10 @@ unlink('CCrossValidation.R')
 dfData = data.frame(lData.train$data)
 fGroups = lData.train$covariates$Allergic.Status
 
-setwd('diagnosticsV3/')
+#setwd('diagnosticsV3/')
 
 oVar.r = CVariableSelection.RandomForest(dfData, fGroups, boot.num = 100)
-save(oVar.r, file='temp/oVar.r_3Cat.rds')
+#save(oVar.r, file='temp/oVar.r_3Cat.rds')
 
 plot.var.selection(oVar.r)
 
@@ -161,15 +167,15 @@ dim(dfData)
 head(dfData)
 # create the cross validation object
 url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/bernoulli.stan'
-download(url, 'bernoulli.stan')
+#download(url, 'bernoulli.stan')
 
-oCV.s = CCrossValidation.StanBern(dfData[,-5], dfData[, -5], fGroups, fGroups, level.predict = 'PA',
+oCV.s = CCrossValidation.StanBern(dfData[,-7], dfData[, -7], fGroups, fGroups, level.predict = 'PA',
                                   boot.num = 10, k.fold = 10, ncores = 2, nchains = 2) 
 
-save(oCV.s, file='diagnosticsV3/temp/oCV.s_3_cat_2markers.rds')
+save(oCV.s, file='diagnosticsV3/temp/oCV.s_RawNumbers_ara_OnlyRemovedOutliers.rds')
 
 plot.cv.performance(oCV.s)
-unlink('bernoulli.stan')
+#unlink('bernoulli.stan')
 ################################################# binomial regression with mixture model section
 ################ fit a binomial model on the chosen model size based on previous results
 ## this can be another classifier as well e.g. LDA. Using this model check how is the performance 

@@ -23,7 +23,7 @@ transformed parameters {
 }
 model {
   //sigmas ~ cauchy(0, 1);
-  tau ~ cauchy(0, 1);
+  tau ~ exponential(1);
   betas[1] ~ cauchy(0, 10); //prior for the betas
   betas[2:Ncol] ~ normal(0, 1); // 
   
