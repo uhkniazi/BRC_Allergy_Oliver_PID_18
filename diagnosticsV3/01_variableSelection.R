@@ -30,18 +30,19 @@ levels(dfData$Allergic.Status)
 dfData$Allergic.Status = gsub(' ', '', as.character(dfData$Allergic.Status))
 dfData$Allergic.Status = factor(dfData$Allergic.Status, levels = c('PS', 'PA'))
 levels(dfData$Allergic.Status)
-## hold back only the Ara variables
-dfData.all = dfData
-load(file.choose())
-dfData = dfData[!(dfData$Patient %in% cvOutliers.PA), ]
-## make count matrix
+dfData$Patient = as.character(dfData$Patient)
+dfData.bk = dfData
+
+## make count matrix and keep only the Ara variables
 mData = as.matrix(dfData[,-c(1:2)])
 dfSample = dfData[,1:2]
 rownames(mData) = as.character(dfSample$Patient)
 str(dfSample)
 i = grep('Ara', colnames(mData))
 mData = mData[,i]
-#
+colnames(mData)
+
+## prepare object to use in analysis
 lData.train = list(data=mData, covariates=dfSample)
 rm(dfData)
 ############ end data loading
@@ -60,21 +61,18 @@ unlink('CCrossValidation.R')
 dfData = data.frame(lData.train$data)
 fGroups = lData.train$covariates$Allergic.Status
 
-#setwd('diagnosticsV3/')
-
 oVar.r = CVariableSelection.RandomForest(dfData, fGroups, boot.num = 100)
-#save(oVar.r, file='temp/oVar.r_3Cat.rds')
 
 plot.var.selection(oVar.r)
-
 
 ######################## Stan section for binomial regression approach
 dfData = data.frame(lData.train$data)
 dim(dfData)
-dfData$fGroups = fGroups
-
+dfData$fGroups = lData.train$covariates$Allergic.Status
+rm(fGroups)
 lData = list(resp=ifelse(dfData$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
 
+library(rethinking)
 library(rstan)
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
@@ -99,6 +97,7 @@ print(fit.stan, c('betas2', 'tau'))
 print(fit.stan, 'tau')
 traceplot(fit.stan, 'tau')
 
+#plot(coeftab(fit.stan), pars=paste0('betas2[', 2:7, ']'))
 ## get the coefficient of interest - Modules in our case from the random coefficients section
 mCoef = extract(fit.stan)$betas2
 dim(mCoef)
@@ -107,30 +106,87 @@ iIntercept = mCoef[,1]
 mCoef = mCoef[,-1]
 colnames(mCoef) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
 
-## function to calculate statistics for a coefficient
-getDifference = function(ivData){
-  # get the difference vector
-  d = ivData
-  # get the z value
-  z = mean(d)/sd(d)
-  # get 2 sided p-value
-  p = pnorm(-abs(mean(d)/sd(d)))*2
-  return(p)
+## coeftab object 
+ct.1 = coeftab(fit.stan)
+rownames(ct.1@coefs)
+rownames(ct.1@coefs)[3:7] = colnames(mCoef)
+rownames(ct.1@se)[3:7] = colnames(mCoef)
+plot(ct.1, pars=colnames(mCoef))
+
+## binomial prediction
+mypred = function(theta, data){
+  betas = theta # vector of betas i.e. regression coefficients for population
+  ## data
+  mModMatrix = data$mModMatrix
+  # calculate fitted value
+  iFitted = mModMatrix %*% betas
+  # using logit link so use inverse logit
+  #iFitted = plogis(iFitted)
+  return(iFitted)
 }
 
-ivPval = apply(mCoef, 2, getDifference)
-hist(ivPval)
-plot(colMeans(mCoef), ivPval, pch=19)
-m = colMeans(mCoef)
-names(m) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
-text(colMeans(mCoef), ivPval, names(m), pos=1)
-m = abs(m)
-m = sort(m, decreasing = T)
 
-p.old = par(mar=c(6,3,4,2)+0.1)
-l2 = barplot(m[1:20], 
-             las=2, xaxt='n', col='grey', main='Top Variables', ylab='Absolute Log Odds')
-axis(1, at = l2, labels = names(m)[1:20], tick = F, las=2, cex.axis=0.7 )
+mCoef = extract(fit.stan)$betas2
+dim(mCoef)
+colnames(mCoef) = c('Intercept', colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)])
+library(lattice)
+## get the predicted values
+## create model matrix
+X = as.matrix(cbind(rep(1, times=nrow(dfData)), dfData[,colnames(mCoef)[-1]]))
+colnames(X) = colnames(mCoef)
+head(X)
+ivPredict = plogis(mypred(colMeans(mCoef), list(mModMatrix=X))[,1])
+xyplot(ivPredict ~ fGroups, xlab='Actual Group', 
+       ylab='Predicted Probability of Being PA (1)',
+       data=dfData)
+# outlier samples
+i = which(ivPredict < 0.5 & fGroups == 'PA')
+cvOutliers = names(i)
+
+fit.1 = fit.stan
+fit.2 = fit.stan
+fit.1.o = fit.stan
+fit.2.o = fit.stan
+# remove appropriate covariate or samples
+m = lData.train$data
+colnames(m)
+m = m[,-6]
+lData.train$data = m
+
+## remove outliers
+i = which(lData.train$covariates$Patient %in% cvOutliers)
+lData.train$data = lData.train$data[-i,]
+lData.train$covariates = lData.train$covariates[-i,]
+## plots of coeftab
+ct = coeftab(fit.1, fit.1.o, fit.2, fit.2.o)
+rownames(ct@coefs)
+rownames(ct@coefs)[3:8] = colnames(mData)
+rownames(ct@se)[3:8] = colnames(mData)
+plot(ct, pars=colnames(mData))
+# ## function to calculate statistics for a coefficient
+# getDifference = function(ivData){
+#   # get the difference vector
+#   d = ivData
+#   # get the z value
+#   z = mean(d)/sd(d)
+#   # get 2 sided p-value
+#   p = pnorm(-abs(mean(d)/sd(d)))*2
+#   return(p)
+# }
+# 
+# ivPval = apply(mCoef, 2, getDifference)
+# hist(ivPval)
+# plot(colMeans(mCoef), ivPval, pch=19)
+# m = colMeans(mCoef)
+# names(m) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
+# text(colMeans(mCoef), ivPval, names(m), pos=1)
+# m = abs(m)
+# m = sort(m, decreasing = T)
+# 
+# p.old = par(mar=c(6,3,4,2)+0.1)
+# l2 = barplot(m[1:20], 
+#              las=2, xaxt='n', col='grey', main='Top Variables', ylab='Absolute Log Odds')
+# axis(1, at = l2, labels = names(m)[1:20], tick = F, las=2, cex.axis=0.7 )
 
 ## format for line plots
 m = colMeans(mCoef)
@@ -150,15 +206,15 @@ for(l in 1:ncol(df)){
 }
 abline(h = 0, col='grey')
 
-## export the coefficients to results file
-m = c(mean(iIntercept), colMeans(mTreatment))
-s = c(sd(iIntercept), apply(mTreatment, 2, sd))
-r = signif(cbind(m, s), 3)
-colnames(r) = c('Coefficient', 'SE')
-rownames(r)[1] = 'Intercept'
-
-#write.csv(r, file = 'results/ISACCoef.csv')
-i = which(r[,1] > 1.5)
+# ## export the coefficients to results file
+# m = c(mean(iIntercept), colMeans(mTreatment))
+# s = c(sd(iIntercept), apply(mTreatment, 2, sd))
+# r = signif(cbind(m, s), 3)
+# colnames(r) = c('Coefficient', 'SE')
+# rownames(r)[1] = 'Intercept'
+# 
+# #write.csv(r, file = 'results/ISACCoef.csv')
+# i = which(r[,1] > 1.5)
 
 dim(dfData)
 dfData.full = dfData
