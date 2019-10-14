@@ -77,18 +77,18 @@ library(rstan)
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 setwd(gcswd)
-stanDso = rstan::stan_model(file='binomialRegressionSharedCoeffVariance.stan')
+stanDso = rstan::stan_model(file='binomialGuessMixtureRegressionSharedCoeffVariance.stan')
 
 lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData$mModMatrix,
                  y=lData$resp)
 
-## give initial values
-initf = function(chain_id = 1) {
-  list(betas=rep(0, times=ncol(lStanData$X)), tau=0.5)
-}
+# ## give initial values
+# initf = function(chain_id = 1) {
+#   list(betas=rep(0, times=ncol(lStanData$X)), tau=0.5)
+# }
 
 
-fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=4, pars=c('tau', 'betas2'), init=initf, cores=4,
+fit.stan = sampling(stanDso, data=lStanData, iter=2000, chains=4, pars=c('tau', 'betas2'), cores=4,# init=initf,
                     control=list(adapt_delta=0.99, max_treedepth = 13))
 
 #save(fit.stan, file='temp/fit.stan.binom.binary.rds')
@@ -109,8 +109,8 @@ colnames(mCoef) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
 ## coeftab object 
 ct.1 = coeftab(fit.stan)
 rownames(ct.1@coefs)
-rownames(ct.1@coefs)[3:7] = colnames(mCoef)
-rownames(ct.1@se)[3:7] = colnames(mCoef)
+rownames(ct.1@coefs)[3:8] = colnames(mCoef)
+rownames(ct.1@se)[3:8] = colnames(mCoef)
 plot(ct.1, pars=colnames(mCoef))
 
 ## binomial prediction
@@ -140,13 +140,15 @@ xyplot(ivPredict ~ fGroups, xlab='Actual Group',
        ylab='Predicted Probability of Being PA (1)',
        data=dfData)
 # outlier samples
-i = which(ivPredict < 0.5 & fGroups == 'PA')
+i = which(ivPredict < 0.5 & dfData$fGroups == 'PA')
 cvOutliers = names(i)
 
 fit.1 = fit.stan
 fit.2 = fit.stan
+fit.3 = fit.stan
 fit.1.o = fit.stan
 fit.2.o = fit.stan
+fit.3.o = fit.stan
 # remove appropriate covariate or samples
 m = lData.train$data
 colnames(m)
@@ -158,7 +160,7 @@ i = which(lData.train$covariates$Patient %in% cvOutliers)
 lData.train$data = lData.train$data[-i,]
 lData.train$covariates = lData.train$covariates[-i,]
 ## plots of coeftab
-ct = coeftab(fit.1, fit.1.o, fit.2, fit.2.o)
+ct = coeftab(fit.1.o, fit.2.o, fit.3.o, fit.1, fit.2, fit.3)
 rownames(ct@coefs)
 rownames(ct@coefs)[3:8] = colnames(mData)
 rownames(ct@se)[3:8] = colnames(mData)
