@@ -91,26 +91,26 @@ lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData
 fit.stan = sampling(stanDso, data=lStanData, iter=2000, chains=4, pars=c('tau', 'betas2'), cores=4,# init=initf,
                     control=list(adapt_delta=0.99, max_treedepth = 13))
 
-#save(fit.stan, file='temp/fit.stan.binom.binary.rds')
+#save(fit.stan, file='temp/fit.stan.binom_guess.rds')
 
 print(fit.stan, c('betas2', 'tau'))
 print(fit.stan, 'tau')
 traceplot(fit.stan, 'tau')
 
-#plot(coeftab(fit.stan), pars=paste0('betas2[', 2:7, ']'))
-## get the coefficient of interest - Modules in our case from the random coefficients section
+## get the coefficient of interest
 mCoef = extract(fit.stan)$betas2
 dim(mCoef)
-# ## get the intercept at population level
+## get the intercept
 iIntercept = mCoef[,1]
 mCoef = mCoef[,-1]
 colnames(mCoef) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
 
 ## coeftab object 
 ct.1 = coeftab(fit.stan)
-rownames(ct.1@coefs)
-rownames(ct.1@coefs)[3:8] = colnames(mCoef)
-rownames(ct.1@se)[3:8] = colnames(mCoef)
+rn = rownames(ct.1@coefs)
+i = grep('betas', rn)
+rownames(ct.1@coefs)[i[-1]] = colnames(mCoef)
+rownames(ct.1@se)[i[-1]] = colnames(mCoef)
 plot(ct.1, pars=colnames(mCoef))
 
 ## binomial prediction
@@ -143,52 +143,30 @@ xyplot(ivPredict ~ fGroups, xlab='Actual Group',
 i = which(ivPredict < 0.5 & dfData$fGroups == 'PA')
 cvOutliers = names(i)
 
-fit.1 = fit.stan
-fit.2 = fit.stan
-fit.3 = fit.stan
-fit.1.o = fit.stan
-fit.2.o = fit.stan
-fit.3.o = fit.stan
-# remove appropriate covariate or samples
-m = lData.train$data
-colnames(m)
-m = m[,-6]
-lData.train$data = m
+m.1 = fit.stan
+m.2 = fit.stan
+m.2.o = fit.stan ## standard logistic model with outlier removed
+m.1.o = fit.stan ## model with guessing parameter and outliers removed
+m.3 = fit.stan  ## model with artifical identifier for outliers
+# # remove appropriate covariate or samples
+# m = lData.train$data
+# colnames(m)
+# m = m[,-6]
+# lData.train$data = m
 
 ## remove outliers
-i = which(lData.train$covariates$Patient %in% cvOutliers)
-lData.train$data = lData.train$data[-i,]
-lData.train$covariates = lData.train$covariates[-i,]
-## plots of coeftab
-ct = coeftab(fit.1.o, fit.2.o, fit.3.o, fit.1, fit.2, fit.3)
-rownames(ct@coefs)
-rownames(ct@coefs)[3:8] = colnames(mData)
-rownames(ct@se)[3:8] = colnames(mData)
+# i = which(lData.train$covariates$Patient %in% cvOutliers)
+# lData.train$data = lData.train$data[-i,]
+# lData.train$covariates = lData.train$covariates[-i,]
+## plots of coeftab, from various models
+## to show that the guessing parameter controls for outliers
+ct = coeftab(m.3, m.1, m.1.o, m.2, m.2.o)
+rn = rownames(ct@coefs)
+i = grep('betas', rn)
+i = i[-c(1, length(i))]
+rownames(ct@coefs)[i] = colnames(mData)
+rownames(ct@se)[i] = colnames(mData)
 plot(ct, pars=colnames(mData))
-# ## function to calculate statistics for a coefficient
-# getDifference = function(ivData){
-#   # get the difference vector
-#   d = ivData
-#   # get the z value
-#   z = mean(d)/sd(d)
-#   # get 2 sided p-value
-#   p = pnorm(-abs(mean(d)/sd(d)))*2
-#   return(p)
-# }
-# 
-# ivPval = apply(mCoef, 2, getDifference)
-# hist(ivPval)
-# plot(colMeans(mCoef), ivPval, pch=19)
-# m = colMeans(mCoef)
-# names(m) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
-# text(colMeans(mCoef), ivPval, names(m), pos=1)
-# m = abs(m)
-# m = sort(m, decreasing = T)
-# 
-# p.old = par(mar=c(6,3,4,2)+0.1)
-# l2 = barplot(m[1:20], 
-#              las=2, xaxt='n', col='grey', main='Top Variables', ylab='Absolute Log Odds')
-# axis(1, at = l2, labels = names(m)[1:20], tick = F, las=2, cex.axis=0.7 )
 
 ## format for line plots
 m = colMeans(mCoef)
@@ -219,18 +197,15 @@ abline(h = 0, col='grey')
 # i = which(r[,1] > 1.5)
 
 dim(dfData)
-dfData.full = dfData
-dfData = dfData[,c(names(i), 'fGroups')]
-dim(dfData)
 head(dfData)
 # create the cross validation object
-url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/bernoulli.stan'
+#url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/bernoulli.stan'
 #download(url, 'bernoulli.stan')
 
-oCV.s = CCrossValidation.StanBern(dfData[,-7], dfData[, -7], fGroups, fGroups, level.predict = 'PA',
+oCV.s = CCrossValidation.StanBern(dfData[,-7], dfData[, -7], dfData$fGroups, dfData$fGroups, level.predict = 'PA',
                                   boot.num = 10, k.fold = 10, ncores = 2, nchains = 2) 
 
-save(oCV.s, file='diagnosticsV3/temp/oCV.s_RawNumbers_ara_OnlyRemovedOutliers.rds')
+save(oCV.s, file='diagnosticsV3/results/oCV.s_ara_Raw_binomialGuess.rds')
 
 plot.cv.performance(oCV.s)
 #unlink('bernoulli.stan')
@@ -238,65 +213,24 @@ plot.cv.performance(oCV.s)
 ################ fit a binomial model on the chosen model size based on previous results
 ## this can be another classifier as well e.g. LDA. Using this model check how is the performance 
 ## and using this make some calibration curves to select decision boundary
-
-
-library(LearnBayes)
-## binomial prediction
-mypred = function(theta, data){
-  betas = theta # vector of betas i.e. regression coefficients for population
-  ## data
-  mModMatrix = data$mModMatrix
-  # calculate fitted value
-  iFitted = mModMatrix %*% betas
-  # using logit link so use inverse logit
-  #iFitted = plogis(iFitted)
-  return(iFitted)
-}
-
-
-lData = list(resp=ifelse(dfData$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
-# ## get the coefficient of interest - Modules in our case from the random coefficients section
-mCoef = extract(fit.stan)$betas2
-dim(mCoef)
-colnames(mCoef) = c('Intercept', colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)])
-# pairs(mCoef, pch=20)
-
-
-### once we have results from the classifier we can make some plots to see
-### the performance
-library(lattice)
 library(car)
-## get the predicted values
-dfData.new = dfData
-## create model matrix
-X = as.matrix(cbind(rep(1, times=nrow(dfData.new)), dfData.new[,colnames(mCoef)[-1]]))
-colnames(X) = colnames(mCoef)
-head(X)
-ivPredict.raw = mypred(colMeans(mCoef), list(mModMatrix=X))[,1]
-ivPredict = plogis(ivPredict.raw)
-xyplot(ivPredict ~ fGroups, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)')
 xyplot(ivPredict ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)',
        main='Predicted scores vs Actual groups')
 densityplot(~ ivPredict, type='n')
-densityplot(~ ivPredict | fGroups, type='n', xlab='Predicted Score', main='Actual Scale')
-densityplot(~ ivPredict, groups=fGroups, type='n', 
+densityplot(~ ivPredict | dfData$fGroups, type='n', xlab='Predicted Score', main='Actual Scale')
+densityplot(~ ivPredict, groups=dfData$fGroups, type='n', 
             xlab='Predicted Score', main='Actual Scale', auto.key = list(columns=2))
 
-## identify possible outliers/misclassified observations
-df = data.frame(fGroups, ivPredict)
-i = which(df$fGroups == 'PS' & df$ivPredict > 0.5)
-rownames(df)[i]
-i = which(df$fGroups == 'PA' & df$ivPredict <= 0.5)
-rownames(df)[i]
 ## lets check on a different scale of the score
-densityplot(~ ivPredict.raw)
-xyplot(ivPredict.raw ~ fGroups, xlab='Actual Group', ylab='Predicted Probability of Being PS (1)')
-densityplot(~ ivPredict.raw, groups=fGroups, data=dfData, type='n', 
+densityplot(~ logit(ivPredict))
+xyplot(logit(ivPredict) ~ dfData$fGroups, xlab='Actual Group', ylab='Predicted Probability of Being PS (1)')
+densityplot(~ logit(ivPredict), groups=dfData$fGroups, data=dfData, type='n', 
             xlab='Predicted Score', main='Logit Scale', auto.key = list(columns=2))
 
 
 ############# ROC curve 
 ## draw a ROC curve first for calibration performance test
+fGroups = dfData$fGroups
 ivTruth = fGroups == 'PA'
 p = prediction(ivPredict, ivTruth)
 perf.alive = performance(p, 'tpr', 'fpr')
@@ -308,7 +242,6 @@ a = performance(p, 'auc')
 legend('bottomright', paste0('auc ', as.numeric(a@y.values)))
 
 # convert to logit scale for model fitting
-ivPredict = ivPredict.raw
 ################################ section for mixture model
 ######## this mixture model will help us decide an appropriate cutoff for the decision rule
 ######## see Gelman 2013 around P18 for an example of record linking score calibration
@@ -317,7 +250,7 @@ fit.stan.bin = fit.stan
 stanDso = rstan::stan_model(file='normResponseFiniteMixture_2.stan')
 
 ## take a subset of the data
-lStanData = list(Ntotal=length(ivPredict), y=ivPredict, iMixtures=2)
+lStanData = list(Ntotal=length(ivPredict), y=logit(ivPredict), iMixtures=2)
 
 ## give initial values if you want, look at the density plot 
 initf = function(chain_id = 1) {
@@ -329,7 +262,7 @@ initf = function(chain_id = 1) {
 fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=4, cores=4, init=initf)
 print(fit.stan, digi=3)
 traceplot(fit.stan)
-save(fit.stan, file='temp/fit.stan.mixture.rds')
+save(fit.stan, file='diagnosticsV3/temp/fit.stan.mixture.rds')
 ## check if labelling degeneracy has occured
 ## see here: http://mc-stan.org/users/documentation/case-studies/identifying_mixture_models.html
 params1 = as.data.frame(extract(fit.stan, permuted=FALSE)[,1,])
@@ -376,7 +309,7 @@ for (i in 1:200){
 
 mDraws.normMix = mDraws
 
-yresp = density(ivPredict)
+yresp = density(logit(ivPredict))
 yresp$y = yresp$y/max(yresp$y)
 plot(yresp, xlab='', main='Fitted distribution', ylab='scaled density', lwd=2)
 temp = apply(mDraws, 2, function(x) {x = density(x)
@@ -388,9 +321,8 @@ lines(yresp, lwd=2)
 
 print(fit.stan)
 
-range(ivPredict)
+range(logit(ivPredict))
 ## reconvert back to inverse logit scale i.e. 0 to 1 range
-ivPredict = plogis(ivPredict.raw)
 
 ## draw a ROC curve first for calibration performance test
 ivTruth = fGroups == 'PA'
@@ -404,12 +336,12 @@ plot(perf.alive, main='Classifier Performance to predict PA')
 ## draw the simulation lines
 ## these are p-values from the mixture components
 ## create posterior smatter lines
-grid = seq(-7, 7, length.out = 100)
+grid = seq(-4, 4, length.out = 100)
 f_getSmatterLines = function(m, s, g){
   return(pnorm(g, m, s, lower.tail = F))
 }
-y = f_getSmatterLines(2.6, 1.5, grid)
-x = f_getSmatterLines(-1.6, 0.1, grid)
+y = f_getSmatterLines(3.6, 0.11, grid)
+x = f_getSmatterLines(-2.1, 1.8, grid)
 lines(x, y, col=2, lwd=2)
 
 ## holders for the simulated p-values
@@ -442,5 +374,5 @@ hist(x, main='False Positive Rate at 0.57', xlab='')
 hist(y, main='True Positive Rate at 0.57', xlab='')
 
 fPredict = rep('PS', times=length(ivPredict))
-fPredict[ivPredict >= 0.57] = 'PA'
-table(fPredict, fGroups)
+fPredict[ivPredict >= 0.5] = 'PA'
+table(fPredict, dfData$fGroups)
