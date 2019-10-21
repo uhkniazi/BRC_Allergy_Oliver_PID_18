@@ -32,3 +32,9 @@ model {
   // likelihood function
   y ~ bernoulli(mu);
 }
+generated quantities {
+  int y_new[Ntotal];
+  vector[Ntotal] log_lik;
+  y_new = bernoulli_rng(mu);
+  for (i in 1:Ntotal) log_lik[i] = bernoulli_lpmf(y[i] | mu[i]);
+}
