@@ -537,6 +537,19 @@ fit.1.cd.sim <- quap(
 summary(fit.1.cd.sim)
 plot(coeftab(fit.1.cd, fit.1.cd.sim), pars=c('b0', 'b1', 'b2'))
 
+fit.2.cd.sim <- quap(
+  alist(
+    CD63.Act ~ dnorm(mu, sigmaPop),
+    mu <- b0 + b1*f13.Peanut,
+    b0 ~ dcauchy(0, 2),
+    c(b1) ~ dnorm(0, 1),
+    sigmaPop ~ dexp(1)
+  ), data=df.Sim,
+  start=list(b0=0)
+)
+summary(fit.2.cd.sim)
+plot(coeftab(fit.1.cd, fit.1.cd.sim, fit.2.cd, fit.2.cd.sim), pars=c('b0', 'b1', 'b2'))
+
 plot(density(dfData.pa$CD63.Act))
 plot(density(df.Sim$CD63.Act))
 # fit.sim <- quap(
