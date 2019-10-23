@@ -32,3 +32,7 @@ model {
   y ~ student_t(nu, mu, sigmaPop);
   y_cens ~ student_t(nu, mu2, sigmaPop);
 }
+generated quantities {
+  vector[Ntotal] log_lik;
+  for (i in 1:Ntotal) log_lik[i] = student_t_lpdf(y[i] | nu, mu[i], sigmaPop);
+}
