@@ -176,8 +176,8 @@ fit.all <- quap(
       b_Ara.h.2.Sp.Act * Ara.h.2.Sp.Act +
       b_Ara.h.6.Sp.Act * Ara.h.6.Sp.Act +
       b_ISAC.Shannon * ISAC.Shannon +
-      b_Peanut.Shannon + Peanut.Shannon +
-      b_Avidity + Avidity,
+      b_Peanut.Shannon * Peanut.Shannon +
+      b_Avidity * Avidity,
     b0 ~ dnorm(0, 2),
     c(b_Peanut.SPT, b_total.IgE, b_f13.Peanut, b_f422.rAra.h.1, b_f423.Ara.h.2,
       b_f424.rAra.h.3, b_f423.nAra.H.6, b_f352.rAra.h.8, b_f427.rAra.h.9,
@@ -238,8 +238,8 @@ fit.all.sim <- quap(
       b_Ara.h.2.Sp.Act * Ara.h.2.Sp.Act +
       b_Ara.h.6.Sp.Act * Ara.h.6.Sp.Act +
       b_ISAC.Shannon * ISAC.Shannon +
-      b_Peanut.Shannon + Peanut.Shannon +
-      b_Avidity + Avidity,
+      b_Peanut.Shannon * Peanut.Shannon +
+      b_Avidity * Avidity,
     b0 ~ dnorm(0, 2),
     c(b_Peanut.SPT, b_total.IgE, b_f13.Peanut, b_f422.rAra.h.1, b_f423.Ara.h.2,
       b_f424.rAra.h.3, b_f423.nAra.H.6, b_f352.rAra.h.8, b_f427.rAra.h.9,
@@ -257,47 +257,102 @@ plot(coeftab(fit.all, fit.all.sim))
 ########################################################################################
 ##### peanut specific ige and avidity
 ########################################################################################
-fit.1 <- quap(
-  alist(
-    CD63.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b_f13.Peanut * f13.Peanut +
-      b_Avidity + Avidity,
-    b0 ~ dnorm(0, 2),
-    c(b_f13.Peanut, b_Avidity) ~ dnorm(0, 1),
-    sigmaPop ~ dexp(1)
-  ), data=dfData,
+## see pages 105 to 109 (rethinking book) for extract.samples, link and sim for 
+## posterior predictive checks 
+model.1 <- alist(
+  CD63.Act ~ dnorm(mu, sigmaPop),
+  mu <- b0 + b_f13.Peanut * f13.Peanut +
+    b_Avidity * Avidity,
+  b0 ~ dnorm(0, 2),
+  c(b_f13.Peanut, b_Avidity) ~ dnorm(0, 1),
+  sigmaPop ~ dexp(1)
+)
+
+fit.1 <- quap(model.1,
+  data=dfData,
   start=list(b0=0)
 )
 
 summary(fit.1)
 plot(coeftab(fit.1))
+
 m = extract.samples(fit.1, n=200)
 names(m)
 pairs(m, pch=20)
 
 ########### simulate fake data from this model
+## generate inputs
 nsim = nrow(dfData)
 df.Sim = data.frame(1:nsim)
 df.Sim$f13.Peanut = rnorm(nsim)
 df.Sim$Avidity = rnorm(nsim)
 colnames(df.Sim)
 
+## do it manually first then use in built function
 ## model matrix
 m = cbind(1, as.matrix(df.Sim[,-1]))
 head(m)
 coef(fit.1)
-m = m %*% coef(fit.1)[-4]
-df.Sim$CD63.Act = rnorm(nsim, m)
+mMuAv = m %*% coef(fit.1)[-4]
+df.Sim$CD63.Act = rnorm(nsim, mMuAv[,1])
+
+## add sampling variation from coefficients
+m = cbind(1, as.matrix(df.Sim[,-c(1,4)]))
+head(m)
+mCoef = extract.samples(fit.1, n = 200)
+mMuSim = apply(mCoef[,-4], 1, function(x) m %*% x)
+dim(mMuSim)
+## draw the new response variable
+mDraws = apply(mMuSim, 2, function(x) rnorm(nsim, x))
+dim(mDraws)
+
+## use the link and sim functions
+mDraws2 = t(sim(fit.1, data=as.list(df.Sim), n=200))
+mMuSim2 = t(link(fit.1, data=as.list(df.Sim), n=200))
+dim(mDraws2)
+dim(mMuSim2)
+
+## compare the 2 simulations
+par(mfrow=c(2,2))
+plot(density(df.Sim$CD63.Act))
+plot(density(rowMeans(mDraws)))
+apply(mDraws, 2, function(x) lines(density(x), lwd=0.5))
+plot(density(rowMeans(mDraws2)))
+apply(mDraws2, 2, function(x) lines(density(x), lwd=0.5))
+
+plot(density(mMuAv[,1]))
+lines(density(rowMeans(mMuSim)), col=2)
+lines(density(rowMeans(mMuSim2)), col=2)
+
+### use the simulated data to fit a new model and get coefficients
+fitModel = function(yrep, dfInput){
+  dfInput$CD63.Act = yrep
+  fit.sim <- quap(model.1,
+                data=dfInput,
+                start=list(b0=0, sigmaPop=1)
+  )
+  return(colMeans(extract.samples(fit.sim, 200)))
+}
+
+mModels = sapply(1:ncol(mDraws2), function(x) fitModel(mDraws2[,x], df.Sim))
+
+## calculate bayesian p-value for a test statistic
+getPValue = function(Trep, Tobs){
+  left = sum(Trep <= Tobs)/length(Trep)
+  right = sum(Trep >= Tobs)/length(Trep)
+  return(min(left, right))
+}
+
+lFitTests = list()
+rownames(mModels)
+colMeans(mCoef)
+lFitTests$fit.1 = c('b_f13.Peanut'= getPValue(mModels['b_f13.Peanut',], 0.49271157),
+                    'b_Avidity' = getPValue(mModels['b_Avidity',], -0.01567242))
+
 
 fit.1.sim <- quap(
-  alist(
-    CD63.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b_f13.Peanut * f13.Peanut +
-      b_Avidity + Avidity,
-    b0 ~ dnorm(0, 2),
-    c(b_f13.Peanut, b_Avidity) ~ dnorm(0, 1),
-    sigmaPop ~ dexp(1)
-  ), data=df.Sim,
+  model.1,
+  data=df.Sim,
   start=list(b0=0)
 )
 plot(coeftab(fit.1, fit.1.sim))
@@ -358,7 +413,7 @@ fit.1.sim <- quap(
   alist(
     CD63.Act ~ dnorm(mu, sigmaPop),
     mu <- b0 + b_f13.Peanut * f13.Peanut +
-      b_Avidity + Avidity,
+      b_Avidity * Avidity,
     b0 ~ dnorm(0, 2),
     c(b_f13.Peanut, b_Avidity) ~ dnorm(0, 1),
     sigmaPop ~ dexp(1)
