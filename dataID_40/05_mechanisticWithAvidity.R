@@ -331,10 +331,20 @@ fitModel = function(yrep, dfInput){
                 data=dfInput,
                 start=list(b0=0, sigmaPop=1)
   )
-  return(colMeans(extract.samples(fit.sim, 200)))
+  s = extract.samples(fit.sim, 200)
+  return(cbind(mu=colMeans(s),
+              sigma=apply(s, 2, sd),
+              min=apply(s, 2, min),
+              max=apply(s, 2, max)))
 }
 
-mModels = sapply(1:ncol(mDraws2), function(x) fitModel(mDraws2[,x], df.Sim))
+## fit one model to get the sequence of parameter names
+temp = fitModel(dfData$CD63.Act, dfData)
+arModels = array(NA, dim = c(4, 4, 200), dimnames = list(rownames(temp), colnames(temp), 1:200))
+
+for(i in 1:200){
+  arModels[,,i] = fitModel(mDraws2[,i], df.Sim)
+}
 
 ## calculate bayesian p-value for a test statistic
 getPValue = function(Trep, Tobs){
@@ -344,11 +354,19 @@ getPValue = function(Trep, Tobs){
 }
 
 lFitTests = list()
-rownames(mModels)
+mCoef = extract.samples(fit.1, n = 2000)
 colMeans(mCoef)
-lFitTests$fit.1 = c('b_f13.Peanut'= getPValue(mModels['b_f13.Peanut',], 0.49271157),
-                    'b_Avidity' = getPValue(mModels['b_Avidity',], -0.01567242))
+mTests = matrix(NA, nrow = dim(arModels)[1], ncol=dim(arModels)[2], dimnames = dimnames(arModels)[1:2])
+rn = rownames(mTests)
+for(i in seq_along(rn)){
+  mTests[rn[i],'mu'] = getPValue(arModels[rn[i], 'mu', ], mean(mCoef[,rn[i]])) 
+  mTests[rn[i],'sigma'] = getPValue(arModels[rn[i], 'sigma', ], sd(mCoef[,rn[i]])) 
+  mTests[rn[i],'min'] = getPValue(arModels[rn[i], 'min', ], min(mCoef[,rn[i]])) 
+  mTests[rn[i],'max'] = getPValue(arModels[rn[i], 'max', ], max(mCoef[,rn[i]])) 
+}
 
+
+lFitTests$fit.1 = mTests
 
 fit.1.sim <- quap(
   model.1,
@@ -358,22 +376,24 @@ fit.1.sim <- quap(
 plot(coeftab(fit.1, fit.1.sim))
 
 #### level 2 of the model, subsets of f13
-fit.2 <- quap(
-  alist(
-    f13.Peanut ~ dnorm(mu, sigmaPop),
-    mu <- b0 + 
-      b_f422.rAra.h.1 * f422.rAra.h.1 +
-      b_f423.Ara.h.2 * f423.Ara.h.2 +
-      b_f424.rAra.h.3 * f424.rAra.h.3 +
-      b_f423.nAra.H.6 * f423.nAra.H.6 +
-      b_f352.rAra.h.8 * f352.rAra.h.8 +
-      b_f427.rAra.h.9 * f427.rAra.h.9, 
-    b0 ~ dnorm(0, 2),
-    c(b_f422.rAra.h.1, b_f423.Ara.h.2,
-      b_f424.rAra.h.3, b_f423.nAra.H.6, b_f352.rAra.h.8, b_f427.rAra.h.9
-      ) ~ dnorm(0, 1),
-    sigmaPop ~ dexp(1)
-  ), data=dfData,
+model.2 <- alist(
+  f13.Peanut ~ dnorm(mu, sigmaPop),
+  mu <- b0 + 
+    b_f422.rAra.h.1 * f422.rAra.h.1 +
+    b_f423.Ara.h.2 * f423.Ara.h.2 +
+    b_f424.rAra.h.3 * f424.rAra.h.3 +
+    b_f423.nAra.H.6 * f423.nAra.H.6 +
+    b_f352.rAra.h.8 * f352.rAra.h.8 +
+    b_f427.rAra.h.9 * f427.rAra.h.9, 
+  b0 ~ dnorm(0, 2),
+  c(b_f422.rAra.h.1, b_f423.Ara.h.2,
+    b_f424.rAra.h.3, b_f423.nAra.H.6, b_f352.rAra.h.8, b_f427.rAra.h.9
+  ) ~ dnorm(0, 1),
+  sigmaPop ~ dexp(1)
+)
+
+fit.2 <- quap(model.2
+  , data=dfData,
   start=list(b0=0)
 )
 summary(fit.2)
@@ -395,8 +415,65 @@ colnames(df.Sim)
 m = cbind(1, as.matrix(df.Sim[,-1]))
 head(m)
 coef(fit.2)
-m = m %*% coef(fit.2)[-8]
-df.Sim$f13.Peanut = rnorm(nsim, m)
+mMuAv = m %*% coef(fit.2)[-8]
+df.Sim$f13.Peanut = rnorm(nsim, mMuAv[,1])
+
+## add sampling variation from coefficients
+## use the link and sim functions
+mDraws = t(sim(fit.2, data=as.list(df.Sim), n=200))
+mMuSim = t(link(fit.2, data=as.list(df.Sim), n=200))
+dim(mDraws)
+dim(mMuSim)
+rm(mDraws2); rm(mMuSim2)
+## compare the simulations
+par(mfrow=c(2,2))
+plot(density(df.Sim$f13.Peanut))
+plot(density(rowMeans(mDraws)))
+apply(mDraws, 2, function(x) lines(density(x), lwd=0.5))
+
+plot(density(mMuAv[,1]))
+lines(density(rowMeans(mMuSim)), col=2)
+
+### use the simulated data to fit a new model and get coefficients
+fitModel = function(yrep, dfInput){
+  dfInput$f13.Peanut = yrep
+  fit.sim <- quap(model.2,
+                  data=dfInput,
+                  start=list(b0=0, sigmaPop=1)
+  )
+  s = extract.samples(fit.sim, 200)
+  return(cbind(mu=colMeans(s),
+               sigma=apply(s, 2, sd),
+               min=apply(s, 2, min),
+               max=apply(s, 2, max)))
+}
+
+## fit one model to get the sequence of parameter names
+temp = fitModel(dfData$f13.Peanut, dfData)
+arModels = array(NA, dim = c(nrow(temp), 4, 200), dimnames = list(rownames(temp), colnames(temp), 1:200))
+
+for(i in 1:200){
+  arModels[,,i] = fitModel(mDraws[,i], df.Sim)
+}
+
+mCoef = extract.samples(fit.2, n = 2000)
+colMeans(mCoef)
+mTests = matrix(NA, nrow = dim(arModels)[1], ncol=dim(arModels)[2], dimnames = dimnames(arModels)[1:2])
+rn = rownames(mTests)
+for(i in seq_along(rn)){
+  mTests[rn[i],'mu'] = getPValue(arModels[rn[i], 'mu', ], mean(mCoef[,rn[i]])) 
+  mTests[rn[i],'sigma'] = getPValue(arModels[rn[i], 'sigma', ], sd(mCoef[,rn[i]])) 
+  mTests[rn[i],'min'] = getPValue(arModels[rn[i], 'min', ], min(mCoef[,rn[i]])) 
+  mTests[rn[i],'max'] = getPValue(arModels[rn[i], 'max', ], max(mCoef[,rn[i]])) 
+}
+
+
+lFitTests$fit.2 = mTests
+
+fit.2.sim = quap(model.2,
+                 data=df.Sim)
+plot(coeftab(fit.2, fit.2.sim))
+
 
 ## simulate level 1 of the data
 df.Sim$Avidity = rnorm(nsim)
@@ -409,15 +486,50 @@ coef(fit.1)
 m = m %*% coef(fit.1)[-4]
 df.Sim$CD63.Act = rnorm(nsim, m)
 
+## use the sim function
+mDraws = t(sim(fit.1, data=as.list(df.Sim), n=200))
+dim(mDraws)
+
+plot(density(dfData$CD63.Act))
+apply(mDraws, 2, function(x) lines(density(x), lwd=0.5))
+
+### use the simulated data to fit a new model and get coefficients
+fitModel = function(yrep, dfInput){
+  dfInput$CD63.Act = yrep
+  fit.sim <- quap(model.1,
+                  data=dfInput,
+                  start=list(b0=0, sigmaPop=1)
+  )
+  s = extract.samples(fit.sim, 200)
+  return(cbind(mu=colMeans(s),
+               sigma=apply(s, 2, sd),
+               min=apply(s, 2, min),
+               max=apply(s, 2, max)))
+}
+
+## fit one model to get the sequence of parameter names
+temp = fitModel(dfData$CD63.Act, dfData)
+arModels = array(NA, dim = c(nrow(temp), 4, 200), dimnames = list(rownames(temp), colnames(temp), 1:200))
+
+for(i in 1:200){
+  arModels[,,i] = fitModel(mDraws[,i], df.Sim)
+}
+
+mCoef = extract.samples(fit.1, n = 2000)
+colMeans(mCoef)
+mTests = matrix(NA, nrow = dim(arModels)[1], ncol=dim(arModels)[2], dimnames = dimnames(arModels)[1:2])
+rn = rownames(mTests)
+for(i in seq_along(rn)){
+  mTests[rn[i],'mu'] = getPValue(arModels[rn[i], 'mu', ], mean(mCoef[,rn[i]])) 
+  mTests[rn[i],'sigma'] = getPValue(arModels[rn[i], 'sigma', ], sd(mCoef[,rn[i]])) 
+  mTests[rn[i],'min'] = getPValue(arModels[rn[i], 'min', ], min(mCoef[,rn[i]])) 
+  mTests[rn[i],'max'] = getPValue(arModels[rn[i], 'max', ], max(mCoef[,rn[i]])) 
+}
+
+lFitTests$fit.1.2 = mTests
+
 fit.1.sim <- quap(
-  alist(
-    CD63.Act ~ dnorm(mu, sigmaPop),
-    mu <- b0 + b_f13.Peanut * f13.Peanut +
-      b_Avidity * Avidity,
-    b0 ~ dnorm(0, 2),
-    c(b_f13.Peanut, b_Avidity) ~ dnorm(0, 1),
-    sigmaPop ~ dexp(1)
-  ), data=df.Sim,
+  model.1, data=df.Sim,
   start=list(b0=0)
 )
 plot(coeftab(fit.1, fit.1.sim))
