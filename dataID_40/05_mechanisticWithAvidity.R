@@ -155,8 +155,12 @@ dfData = dfData[dfData$Allergic.Status == 'PA', ]
 library(rethinking)
 
 ## scale the data 
-dfData = data.frame(scale(dfData[,-c(1:3)]))
-
+#dfData = data.frame(scale(dfData[,-c(1:3)]))
+m = dfData[,-c(1:3)]
+m = apply(m, 2, function(x) x-mean(x))
+m[,'CD63.Act'] = scale(dfData$CD63.Act)
+dfData = data.frame(m)
+str(dfData)
 ########################################################################################
 #################### model 1 with all covariates
 ########################################################################################
@@ -196,7 +200,7 @@ pairs(m, pch=20)
 
 ########### simulate fake data from this model
 nsim = nrow(dfData)
-df.Sim = data.frame(1:nsim)
+df.Sim = data.frame(1:nsim, dfData[,-15])
 df.Sim$Peanut.SPT = rnorm(nsim)
 df.Sim$total.IgE = rnorm(nsim)
 df.Sim$f13.Peanut = rnorm(nsim)
@@ -284,8 +288,8 @@ pairs(m, pch=20)
 ## generate inputs
 nsim = nrow(dfData)
 df.Sim = data.frame(1:nsim)
-df.Sim$f13.Peanut = rnorm(nsim)
-df.Sim$Avidity = rnorm(nsim)
+df.Sim$f13.Peanut = dfData$f13.Peanut# rnorm(nsim)
+df.Sim$Avidity = dfData$Avidity#  rnorm(nsim)
 colnames(df.Sim)
 
 ## do it manually first then use in built function
@@ -314,11 +318,11 @@ dim(mMuSim2)
 
 ## compare the 2 simulations
 par(mfrow=c(2,2))
-plot(density(df.Sim$CD63.Act))
+plot(density(dfData$CD63.Act))
 plot(density(rowMeans(mDraws)))
-apply(mDraws, 2, function(x) lines(density(x), lwd=0.5))
+apply(mDraws, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
 plot(density(rowMeans(mDraws2)))
-apply(mDraws2, 2, function(x) lines(density(x), lwd=0.5))
+apply(mDraws2, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
 
 plot(density(mMuAv[,1]))
 lines(density(rowMeans(mMuSim)), col=2)
@@ -364,7 +368,7 @@ for(i in seq_along(rn)){
   mTests[rn[i],'min'] = getPValue(arModels[rn[i], 'min', ], min(mCoef[,rn[i]])) 
   mTests[rn[i],'max'] = getPValue(arModels[rn[i], 'max', ], max(mCoef[,rn[i]])) 
 }
-
+mTests
 
 lFitTests$fit.1 = mTests
 
@@ -403,12 +407,12 @@ pairs(extract.samples(fit.2, n=100))
 ## simulate the data from level 2
 nsim = nrow(dfData)
 df.Sim = data.frame(1:nsim)
-df.Sim$f422.rAra.h.1 = rnorm(nsim)
-df.Sim$f423.Ara.h.2 = rnorm(nsim)
-df.Sim$f424.rAra.h.3 = rnorm(nsim)
-df.Sim$f423.nAra.H.6 = rnorm(nsim)
-df.Sim$f352.rAra.h.8 = rnorm(nsim)
-df.Sim$f427.rAra.h.9 = rnorm(nsim)
+df.Sim$f422.rAra.h.1 = dfData$f422.rAra.h.1#  rnorm(nsim)
+df.Sim$f423.Ara.h.2 = dfData$f423.Ara.h.2 #rnorm(nsim)
+df.Sim$f424.rAra.h.3 = dfData$f424.rAra.h.3#  rnorm(nsim)
+df.Sim$f423.nAra.H.6 = dfData$f423.nAra.H.6#  rnorm(nsim)
+df.Sim$f352.rAra.h.8 = dfData$f352.rAra.h.8#  rnorm(nsim)
+df.Sim$f427.rAra.h.9 = dfData$f427.rAra.h.9#  rnorm(nsim)
 colnames(df.Sim)
 
 ## model matrix
@@ -416,7 +420,7 @@ m = cbind(1, as.matrix(df.Sim[,-1]))
 head(m)
 coef(fit.2)
 mMuAv = m %*% coef(fit.2)[-8]
-df.Sim$f13.Peanut = rnorm(nsim, mMuAv[,1])
+df.Sim$f13.Peanut = rnorm(nsim, mMuAv[,1], coef(fit.2)[8])
 
 ## add sampling variation from coefficients
 ## use the link and sim functions
@@ -427,12 +431,13 @@ dim(mMuSim)
 rm(mDraws2); rm(mMuSim2)
 ## compare the simulations
 par(mfrow=c(2,2))
-plot(density(df.Sim$f13.Peanut))
+plot(density(dfData$f13.Peanut))
 plot(density(rowMeans(mDraws)))
 apply(mDraws, 2, function(x) lines(density(x), lwd=0.5))
 
 plot(density(mMuAv[,1]))
 lines(density(rowMeans(mMuSim)), col=2)
+par(mfrow=c(1,1))
 
 ### use the simulated data to fit a new model and get coefficients
 fitModel = function(yrep, dfInput){
@@ -467,7 +472,7 @@ for(i in seq_along(rn)){
   mTests[rn[i],'max'] = getPValue(arModels[rn[i], 'max', ], max(mCoef[,rn[i]])) 
 }
 
-
+mTests
 lFitTests$fit.2 = mTests
 
 fit.2.sim = quap(model.2,
@@ -476,7 +481,7 @@ plot(coeftab(fit.2, fit.2.sim))
 
 
 ## simulate level 1 of the data
-df.Sim$Avidity = rnorm(nsim)
+df.Sim$Avidity = dfData$Avidity#  rnorm(nsim)
 colnames(df.Sim)
 
 ## model matrix
@@ -526,14 +531,16 @@ for(i in seq_along(rn)){
   mTests[rn[i],'max'] = getPValue(arModels[rn[i], 'max', ], max(mCoef[,rn[i]])) 
 }
 
+mTests
 lFitTests$fit.1.2 = mTests
 
-fit.1.sim <- quap(
+fit.1.2.sim <- quap(
   model.1, data=df.Sim,
   start=list(b0=0)
 )
-plot(coeftab(fit.1, fit.1.sim))
-
+plot(coeftab(fit.1, fit.1.sim, fit.1.2.sim), pars=c('b_f13.Peanut', 'b_Avidity'))
+compare(fit.1, fit.1.sim, fit.1.2.sim)
+plot(compare(fit.1, fit.1.sim, fit.1.2.sim))
 
 ########################################################################################
 
