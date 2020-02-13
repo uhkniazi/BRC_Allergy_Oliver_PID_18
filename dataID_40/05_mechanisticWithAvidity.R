@@ -71,12 +71,12 @@ df$y = dfData$CD63.Act
 df$g = dfData$Allergic.Status
 
 library(lattice)
-xyplot(y ~ log(values+0.5) | ind, data=df, groups=g, type=c('g', 'p', 'r'), pch=19, cex=0.6,
+xyplot(y ~ log(values+1) | ind, data=df, groups=g, type=c('g', 'p', 'r'), pch=19, cex=0.6,
        index.cond = function(x,y) coef(lm(y ~ x))[1], #aspect='xy',# layout=c(8,2),
        par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'),
        auto.key=list(columns=2))
 
-xyplot(y ~ log(values+0.5) | ind, data=df, groups=g, type=c('g', 'p', 'smooth'), pch=19, cex=0.6,
+xyplot(y ~ log(values+1) | ind, data=df, groups=g, type=c('g', 'p', 'smooth'), pch=19, cex=0.6,
        index.cond = function(x,y) coef(lm(y ~ x))[1], #aspect='xy',# layout=c(8,2),
        par.strip.text=list(cex=0.7), scales = list(x=list(rot=45, cex=0.5), relation='free'),
        auto.key=list(columns=2))
@@ -93,6 +93,138 @@ pairs(log(m[dfData$Allergic.Status == 'PA', ]), pch=20)
 
 tapply(df$values[df$g == 'PA'], df$ind[df$g == 'PA'], function(x) quantile(x, 0:10/10))
 dfData.bk = dfData
+
+dfData = dfData[dfData$Allergic.Status == 'PA', ]
+dfData = droplevels.data.frame(dfData)
+library(rethinking)
+library(car)
+########################################################################################
+##### peanut specific ige and avidity
+########################################################################################
+## see pages 105 to 109 (rethinking book) for extract.samples, link and sim for 
+## posterior predictive checks 
+str(dfData)
+dfData$CD63_Act = dfData$CD63.Act - mean(dfData$CD63.Act)
+# dfData$f13_Peanut = dfData$f13.Peanut - mean(dfData$f13.Peanut)
+dfData$f13_Peanut = log(dfData$f13.Peanut+1) 
+dfData$f13_Peanut = dfData$f13_Peanut - mean(dfData$f13_Peanut)
+dfData$Avidity = dfData$Avidity - mean(dfData$Avidity)
+
+fit.lm = lm(CD63_Act ~ f13_Peanut + Avidity, data=dfData)
+summary(fit.lm)
+
+model.1 <- alist(
+  # https://github.com/rmcelreath/rethinking/blob/ae3fae963e244c58bbd68dd86478840a87d29f49/man/dstudent.Rd#L37
+  CD63_Act ~ dstudent(3, mu, sigmaPop),
+  mu <- b0 + b_f13_Peanut * f13_Peanut +
+    b_Avidity * Avidity,
+  b0 ~ dnorm(0, 2),
+  c(b_f13_Peanut, b_Avidity) ~ dnorm(0, 3),
+  sigmaPop ~ dexp(1/28)
+  # see here for example
+  # https://github.com/rmcelreath/rethinking/blob/ae3fae963e244c58bbd68dd86478840a87d29f49/tests/rethinking_tests/test_ulam1.R#L20
+  #nu ~ gamma(3, 0.1)
+)
+
+fit.1 <- quap(model.1,
+              data=dfData,
+              start=list(b0=0)
+)
+
+summary(fit.1)
+plot(coeftab(fit.1))
+
+# fit.1.u = ulam(model.1, data=as.list(dfData[,c('CD63_Act', 'f13_Peanut', 'Avidity')]), log_lik = T,
+#                start = list(sigmaPop=14, nu=10), chains = 4, cores=4)
+m = extract.samples(fit.1, n=200)
+names(m)
+pairs(m, pch=20)
+
+### residual checks
+fitted.pa = link(fit.1, data = as.list(dfData), n = 200)
+dim(fitted.pa)
+fitted.pa = colMeans(fitted.pa)
+
+## calculate standardized residuals
+## these are useful to detect non-normality
+## see equation 14.7 in Gelman 2013
+## for t-distribution it is sqrt((scale^2)*(nu/(nu-2)))
+s = coef(fit.1)['sigmaPop']
+nu = 3
+sa = sqrt((s^2)*(nu/(nu-2)))
+# get residuals that is response minus fitted values
+iResid.pa = (dfData$CD63_Act - fitted.pa) / sa
+plot(fitted.pa, iResid.pa, pch=20)
+lines(lowess(fitted.pa, iResid.pa))
+
+## checking for non-linearity
+plot(dfData$f13_Peanut, iResid.pa)
+lines(lowess(dfData$f13_Peanut, iResid.pa))
+
+plot(dfData$Avidity, iResid.pa)
+lines(lowess(dfData$Avidity, iResid.pa))
+
+## unequal variances
+plot(dfData$f13_Peanut, abs(iResid.pa))
+lines(lowess(dfData$f13_Peanut, abs(iResid.pa)))
+
+plot(dfData$Avidity, abs(iResid.pa))
+lines(lowess(dfData$Avidity, abs(iResid.pa)))
+
+### use link and sim functions to get samples of fitted values and posterior predictive data
+rt_ls <- function(n, df, mu, a) rt(n,df)*a + mu
+simulateOne = function(betas, sigma, nu, mModMatrix){
+  f = mModMatrix %*% betas
+  yrep = rt_ls(length(f), nu, f,  sigma)
+  return(yrep)
+}
+mDraws = (sim(fit.1, data=as.list(dfData), n=200))
+mMuSim = (link(fit.1, data=as.list(dfData), n=200))
+dim(mDraws)
+dim(mMuSim)
+mParam = extract.samples(fit.1, n=200)
+dim(mParam)
+
+mDraws.2 = matrix(NA, nrow = 200, ncol = 36)
+for (i in 1:200){
+  mDraws.2[i,] = simulateOne(t(mParam[i,c(1,2,3)]), mParam[i,4], 3, model.matrix(CD63_Act ~ f13_Peanut + Avidity, data=dfData)) 
+}
+
+## visual checks
+plot(density(dfData$CD63_Act))
+lines(density(colMeans(mDraws)))
+apply(mDraws, 1, function(x) lines(density(x), lwd=0.5, col='grey'))
+
+plot(density(dfData$CD63_Act))
+lines(density(colMeans(mDraws.2)))
+apply(mDraws.2, 1, function(x) lines(density(x), lwd=0.5, col='grey'))
+
+plot(density(colMeans(mDraws)), xlim=c(-40, 40))
+lines(density(colMeans(mDraws.2)))
+apply(mDraws, 1, function(x) lines(density(x), lwd=0.5, col='grey'))
+apply(mDraws.2, 1, function(x) lines(density(x), lwd=0.5, col='red'))
+
+plot(density(rowMeans(mDraws2)))
+apply(mDraws2, 2, function(x) lines(density(x), lwd=0.5, col='grey'))
+
+#### plot covariates vs actual data and fitted values
+plot(dfData$f13_Peanut, dfData$CD63_Act, pch=20)
+lines(lowess(dfData$f13_Peanut, colMeans(mMuSim)))
+points(dfData$f13_Peanut, colMeans(mMuSim), col=2, pch=20)
+
+i = range(dfData$f13_Peanut)
+iGrid = seq(i[1], i[2], length.out = 50)
+## hold on variable at average
+coef(fit.1)
+mFitted = link(fit.1, data=list(f13_Peanut=iGrid, Avidity=0))
+## posterior predictive values for fitted
+lines(iGrid, colMeans(mFitted), col='green')
+mu.hpdi = apply(mFitted, 2, HPDI)
+shade(mu.hpdi, iGrid)
+######################################################################################
+
+
+
 
 dfData$total.IgE = log(dfData$total.IgE)
 dfData$f13.Peanut = log(dfData$f13.Peanut)
