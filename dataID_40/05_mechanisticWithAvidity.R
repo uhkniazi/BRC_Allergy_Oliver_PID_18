@@ -98,6 +98,17 @@ dfData = dfData[dfData$Allergic.Status == 'PA', ]
 dfData = droplevels.data.frame(dfData)
 library(rethinking)
 library(car)
+
+## function to calculate statistics for a coefficient
+getDifference = function(ivData){
+  # get the difference vector
+  d = ivData
+  # get the z value
+  z = mean(d)/sd(d)
+  # get 2 sided p-value
+  p = pnorm(-abs(mean(d)/sd(d)))*2
+  return(p)
+}
 ########################################################################################
 ##### peanut specific ige and avidity
 ########################################################################################
@@ -106,7 +117,7 @@ library(car)
 str(dfData)
 dfData$CD63_Act = dfData$CD63.Act - mean(dfData$CD63.Act)
 # dfData$f13_Peanut = dfData$f13.Peanut - mean(dfData$f13.Peanut)
-dfData$f13_Peanut = log(dfData$f13.Peanut+1) 
+dfData$f13_Peanut = log(dfData$f13.Peanut) 
 dfData$f13_Peanut = dfData$f13_Peanut - mean(dfData$f13_Peanut)
 dfData$Avidity = dfData$Avidity - mean(dfData$Avidity)
 
@@ -132,13 +143,14 @@ fit.1 <- quap(model.1,
 )
 
 summary(fit.1)
-plot(coeftab(fit.1))
+plot(coeftab(fit.1), pars=c('b0', 'b_f13_Peanut', 'b_Avidity'))
 
 # fit.1.u = ulam(model.1, data=as.list(dfData[,c('CD63_Act', 'f13_Peanut', 'Avidity')]), log_lik = T,
 #                start = list(sigmaPop=14, nu=10), chains = 4, cores=4)
-m = extract.samples(fit.1, n=200)
+m = extract.samples(fit.1, n=1000)
 names(m)
 pairs(m, pch=20)
+round(apply(m, 2, getDifference),3)
 
 ### residual checks
 fitted.pa = link(fit.1, data = as.list(dfData), n = 200)
@@ -205,24 +217,30 @@ apply(mDraws, 1, function(x) lines(density(x), lwd=0.5, col='grey'))
 apply(mDraws.2, 1, function(x) lines(density(x), lwd=0.5, col='red'))
 
 #### plot covariates vs actual data and fitted values
-plot(dfData$f13_Peanut, dfData$CD63_Act, pch=20)
+plot(dfData$f13_Peanut, dfData$CD63_Act, pch=20,
+     xlab='log f13_peanut', ylab='%CD63 Act',
+     main='Relationship of Predictor to Response')
 lines(lowess(dfData$f13_Peanut, colMeans(mMuSim)))
 points(dfData$f13_Peanut, colMeans(mMuSim), col=2, pch=20)
+lines(lowess(dfData$f13_Peanut, dfData$CD63_Act))
 
 i = range(dfData$f13_Peanut)
 iGrid = seq(i[1], i[2], length.out = 50)
 ## hold second variable at average
 coef(fit.1)
-mFitted = link(fit.1, data=list(f13_Peanut=iGrid, Avidity=0))
+mFitted = link(fit.1, data=list(f13_Peanut=iGrid, Avidity=rep(0, times=50)))
 ## posterior predictive values for fitted
 lines(iGrid, colMeans(mFitted), col='green')
 mu.hpdi = apply(mFitted, 2, HPDI)
 shade(mu.hpdi, iGrid)
 
 ### repeat for second variable
-plot(dfData$Avidity, dfData$CD63_Act, pch=20)
+plot(dfData$Avidity, dfData$CD63_Act, pch=20,
+     xlab='Avidity', ylab='%CD63 Act',
+     main='Relationship of Predictor to Response')
 lines(lowess(dfData$Avidity, colMeans(mMuSim)))
 points(dfData$Avidity, colMeans(mMuSim), col=2, pch=20)
+lines(lowess(dfData$Avidity, dfData$CD63_Act))
 
 i = range(dfData$Avidity)
 iGrid = seq(i[1], i[2], length.out = 50)
