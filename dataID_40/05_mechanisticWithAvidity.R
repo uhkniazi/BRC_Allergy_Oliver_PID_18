@@ -536,3 +536,145 @@ mu.hpdi = apply(mFitted, 2, HPDI)
 shade(mu.hpdi, iGrid)
 
 ######################################################################################
+
+
+########################################################################################
+##### peanut specific ige Ara h6 and avidity
+########################################################################################
+## see pages 105 to 109 (rethinking book) for extract.samples, link and sim for 
+## posterior predictive checks 
+str(dfData)
+dfData$CD63_Act = dfData$CD63.Act - mean(dfData$CD63.Act)
+dfData$f423_nAraH6 = log(dfData$f423.nAra.H.6 + 1) 
+dfData$f423_nAraH6 = dfData$f423_nAraH6 - mean(dfData$f423_nAraH6)
+
+fit.lm = lm(CD63_Act ~ f423_nAraH6 + Avidity, data=dfData)
+summary(fit.lm)
+
+model.1 <- alist(
+  # https://github.com/rmcelreath/rethinking/blob/ae3fae963e244c58bbd68dd86478840a87d29f49/man/dstudent.Rd#L37
+  CD63_Act ~ dstudent(3, mu, sigmaPop),
+  mu <- b0 + b_f423_nAraH6 * f423_nAraH6 +
+    b_Avidity * Avidity,
+  b0 ~ dnorm(0, 2),
+  c(b_f423_nAraH6, b_Avidity) ~ dnorm(0, 3),
+  sigmaPop ~ dexp(1/28)
+  # see here for example
+  # https://github.com/rmcelreath/rethinking/blob/ae3fae963e244c58bbd68dd86478840a87d29f49/tests/rethinking_tests/test_ulam1.R#L20
+  #nu ~ gamma(3, 0.1)
+)
+
+fit.1 <- quap(model.1,
+              data=dfData,
+              start=list(b0=0)
+)
+
+summary(fit.1)
+plot(coeftab(fit.1), pars=c('b0', 'b_f423_nAraH6', 'b_Avidity'))
+
+m = extract.samples(fit.1, n=1000)
+names(m)
+pairs(m, pch=20)
+round(apply(m, 2, getDifference),3)
+
+### residual checks
+fitted.pa = link(fit.1, data = as.list(dfData), n = 200)
+dim(fitted.pa)
+fitted.pa = colMeans(fitted.pa)
+
+## calculate standardized residuals
+## these are useful to detect non-normality
+## see equation 14.7 in Gelman 2013
+## for t-distribution it is sqrt((scale^2)*(nu/(nu-2)))
+s = coef(fit.1)['sigmaPop']
+nu = 3
+sa = sqrt((s^2)*(nu/(nu-2)))
+# get residuals that is response minus fitted values
+iResid.pa = (dfData$CD63_Act - fitted.pa) / sa
+plot(fitted.pa, iResid.pa, pch=20)
+lines(lowess(fitted.pa, iResid.pa))
+
+## checking for non-linearity
+plot(dfData$f423_nAraH6, iResid.pa)
+lines(lowess(dfData$f423_nAraH6, iResid.pa))
+
+plot(dfData$Avidity, iResid.pa)
+lines(lowess(dfData$Avidity, iResid.pa))
+
+## unequal variances
+plot(dfData$f423_nAraH6, abs(iResid.pa))
+lines(lowess(dfData$f423_nAraH6, abs(iResid.pa)))
+
+plot(dfData$Avidity, abs(iResid.pa))
+lines(lowess(dfData$Avidity, abs(iResid.pa)))
+
+### use link and sim functions to get samples of fitted values and posterior predictive data
+rt_ls <- function(n, df, mu, a) rt(n,df)*a + mu
+simulateOne = function(betas, sigma, nu, mModMatrix){
+  f = mModMatrix %*% betas
+  yrep = rt_ls(length(f), nu, f,  sigma)
+  return(yrep)
+}
+mDraws = (sim(fit.1, data=as.list(dfData), n=200))
+mMuSim = (link(fit.1, data=as.list(dfData), n=200))
+dim(mDraws)
+dim(mMuSim)
+mParam = extract.samples(fit.1, n=200)
+dim(mParam)
+
+mDraws.2 = matrix(NA, nrow = 200, ncol = 36)
+for (i in 1:200){
+  mDraws.2[i,] = simulateOne(t(mParam[i,c(1,2,3)]), mParam[i,4], 3, model.matrix(CD63_Act ~ f423_nAraH6 + Avidity, data=dfData)) 
+}
+
+## visual checks
+plot(density(dfData$CD63_Act))
+lines(density(colMeans(mDraws)))
+apply(mDraws, 1, function(x) lines(density(x), lwd=0.5, col='grey'))
+
+plot(density(dfData$CD63_Act))
+lines(density(colMeans(mDraws.2)))
+apply(mDraws.2, 1, function(x) lines(density(x), lwd=0.5, col='grey'))
+
+plot(density(colMeans(mDraws)), xlim=c(-40, 40))
+lines(density(colMeans(mDraws.2)))
+apply(mDraws, 1, function(x) lines(density(x), lwd=0.5, col='grey'))
+apply(mDraws.2, 1, function(x) lines(density(x), lwd=0.5, col='red'))
+
+#### plot covariates vs actual data and fitted values
+plot(dfData$f423_nAraH6, dfData$CD63_Act, pch=20,
+     xlab='log f423_nAraH6', ylab='%CD63 Act',
+     main='Relationship of Predictor to Response')
+lines(lowess(dfData$f423_nAraH6, colMeans(mMuSim)))
+points(dfData$f423_nAraH6, colMeans(mMuSim), col=2, pch=20)
+lines(lowess(dfData$f423_nAraH6, dfData$CD63_Act))
+
+i = range(dfData$f423_nAraH6)
+iGrid = seq(i[1], i[2], length.out = 50)
+## hold second variable at average
+coef(fit.1)
+mFitted = link(fit.1, data=list(f423_nAraH6=iGrid, Avidity=rep(0, times=50)))
+## posterior predictive values for fitted
+lines(iGrid, colMeans(mFitted), col='green')
+mu.hpdi = apply(mFitted, 2, HPDI)
+shade(mu.hpdi, iGrid)
+
+### repeat for second variable
+plot(dfData$Avidity, dfData$CD63_Act, pch=20,
+     xlab='Avidity', ylab='%CD63 Act',
+     main='Relationship of Predictor to Response')
+lines(lowess(dfData$Avidity, colMeans(mMuSim)))
+points(dfData$Avidity, colMeans(mMuSim), col=2, pch=20)
+lines(lowess(dfData$Avidity, dfData$CD63_Act))
+
+i = range(dfData$Avidity)
+iGrid = seq(i[1], i[2], length.out = 50)
+## hold second variable at average
+coef(fit.1)
+mFitted = link(fit.1, data=list(f423_nAraH6=rep(0, times=50), Avidity=iGrid))
+## posterior predictive values for fitted
+lines(iGrid, colMeans(mFitted), col='green')
+mu.hpdi = apply(mFitted, 2, HPDI)
+shade(mu.hpdi, iGrid)
+
+######################################################################################
