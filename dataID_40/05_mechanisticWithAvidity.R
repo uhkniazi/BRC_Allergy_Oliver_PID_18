@@ -849,6 +849,80 @@ lines(iGrid, colMeans(mFitted), col='green')
 mu.hpdi = apply(mFitted, 2, HPDI)
 shade(mu.hpdi, iGrid)
 
+########## counterfactual plots
+## hold the values of f13_peanut at high and low values
+plot(dfData$Avidity, dfData$CD63_Act, pch=20,
+     xlab='Avidity', ylab='%CD63 Act', type='n',
+     main='Relationship of Predictor to Response')
+lines(lowess(dfData$Avidity, colMeans(mMuSim)))
+points(dfData$Avidity, colMeans(mMuSim), col=2, pch=20)
+lines(lowess(dfData$Avidity, dfData$CD63_Act))
+
+i = range(dfData$Avidity)
+iGrid = seq(i[1], i[2], length.out = 50)
+## hold second variable at lowest
+coef(fit.1)
+summary(dfData$f13_Peanut)
+mFitted = link(fit.1, data=list(f13_Peanut=rep(-3, times=50), 
+                                Peanut_Shannon = rep(0, times=50),
+                                Avidity=iGrid))
+## posterior predictive values for fitted
+lines(iGrid, colMeans(mFitted), col='green')
+
+## hold second variable at average
+coef(fit.1)
+summary(dfData$f13_Peanut)
+mFitted = link(fit.1, data=list(f13_Peanut=rep(0, times=50), 
+                                Peanut_Shannon = rep(0, times=50),
+                                Avidity=iGrid))
+## posterior predictive values for fitted
+lines(iGrid, colMeans(mFitted), col='red')
+
+## hold second variable at largest
+coef(fit.1)
+summary(dfData$f13_Peanut)
+mFitted = link(fit.1, data=list(f13_Peanut=rep(3, times=50), 
+                                Peanut_Shannon = rep(0, times=50),
+                                Avidity=iGrid))
+## posterior predictive values for fitted
+lines(iGrid, colMeans(mFitted), col='blue')
+
+### repeat this for peanut shannon
+## hold the values of f13_peanut at high and low values
+plot(dfData$Peanut_Shannon, dfData$CD63_Act, pch=20,
+     xlab='Peanut Shannon', ylab='%CD63 Act', type='n',
+     main='Relationship of Predictor to Response')
+lines(lowess(dfData$Peanut_Shannon, colMeans(mMuSim)))
+
+i = range(dfData$Peanut_Shannon)
+iGrid = seq(i[1], i[2], length.out = 50)
+## hold second variable at lowest
+coef(fit.1)
+summary(dfData$f13_Peanut)
+mFitted = link(fit.1, data=list(f13_Peanut=rep(-3, times=50), 
+                                Peanut_Shannon = iGrid,
+                                Avidity=rep(0, times=50)))
+## posterior predictive values for fitted
+lines(iGrid, colMeans(mFitted), col='green')
+
+## hold second variable at average
+coef(fit.1)
+summary(dfData$f13_Peanut)
+mFitted = link(fit.1, data=list(f13_Peanut=rep(0, times=50), 
+                                Peanut_Shannon = iGrid,
+                                Avidity=rep(0, times=50)))
+## posterior predictive values for fitted
+lines(iGrid, colMeans(mFitted), col='red')
+
+## hold second variable at largest
+coef(fit.1)
+summary(dfData$f13_Peanut)
+mFitted = link(fit.1, data=list(f13_Peanut=rep(3, times=50), 
+                                Peanut_Shannon = iGrid,
+                                Avidity=rep(0, times=50)))
+## posterior predictive values for fitted
+lines(iGrid, colMeans(mFitted), col='blue')
+
 ######################################################################################
 
 ########################################################################################
