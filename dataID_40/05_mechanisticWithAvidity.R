@@ -87,14 +87,13 @@ xyplot(y ~ values | ind, data=df, groups=g, type=c('g', 'p', 'smooth'), pch=19, 
        auto.key=list(columns=2))
 
 
-as.data.frame(colnames(dfData))
-m = as.matrix(dfData[,c(4:12)])
-pairs(log(m[dfData$Allergic.Status == 'PA', ]), pch=20)
+# as.data.frame(colnames(dfData))
+# m = as.matrix(dfData[,c(4:12)])
+# pairs(log(m[dfData$Allergic.Status == 'PA', ]), pch=20)
 
-tapply(df$values[df$g == 'PA'], df$ind[df$g == 'PA'], function(x) quantile(x, 0:10/10))
+tapply(df$values, df$ind, function(x) quantile(x, 0:10/10))
 dfData.bk = dfData
 
-dfData = dfData[dfData$Allergic.Status == 'PA', ]
 dfData = droplevels.data.frame(dfData)
 library(rethinking)
 library(car)
@@ -197,7 +196,7 @@ dim(mMuSim)
 mParam = extract.samples(fit.1, n=200)
 dim(mParam)
 
-mDraws.2 = matrix(NA, nrow = 200, ncol = 36)
+mDraws.2 = matrix(NA, nrow = 200, ncol = 60)
 for (i in 1:200){
   mDraws.2[i,] = simulateOne(t(mParam[i,c(1,2,3)]), mParam[i,4], 3, model.matrix(CD63_Act ~ f13_Peanut + Avidity, data=dfData)) 
 }
@@ -339,7 +338,7 @@ dim(mMuSim)
 mParam = extract.samples(fit.1, n=200)
 dim(mParam)
 
-mDraws.2 = matrix(NA, nrow = 200, ncol = 36)
+mDraws.2 = matrix(NA, nrow = 200, ncol = 60)
 for (i in 1:200){
   mDraws.2[i,] = simulateOne(t(mParam[i,c(1,2,3)]), mParam[i,4], 3, model.matrix(CD63_Act ~ f423_Arah2 + Avidity, data=dfData)) 
 }
@@ -480,7 +479,7 @@ dim(mMuSim)
 mParam = extract.samples(fit.1, n=200)
 dim(mParam)
 
-mDraws.2 = matrix(NA, nrow = 200, ncol = 36)
+mDraws.2 = matrix(NA, nrow = 200, ncol = 60)
 for (i in 1:200){
   mDraws.2[i,] = simulateOne(t(mParam[i,c(1,2,3)]), mParam[i,4], 3, model.matrix(CD63_Act ~ f424_rArah3 + Avidity, data=dfData)) 
 }
@@ -622,7 +621,7 @@ dim(mMuSim)
 mParam = extract.samples(fit.1, n=200)
 dim(mParam)
 
-mDraws.2 = matrix(NA, nrow = 200, ncol = 36)
+mDraws.2 = matrix(NA, nrow = 200, ncol = 60)
 for (i in 1:200){
   mDraws.2[i,] = simulateOne(t(mParam[i,c(1,2,3)]), mParam[i,4], 3, model.matrix(CD63_Act ~ f423_nAraH6 + Avidity, data=dfData)) 
 }
@@ -769,7 +768,7 @@ dim(mMuSim)
 mParam = extract.samples(fit.1, n=200)
 dim(mParam)
 
-mDraws.2 = matrix(NA, nrow = 200, ncol = 36)
+mDraws.2 = matrix(NA, nrow = 200, ncol = 60)
 for (i in 1:200){
   mDraws.2[i,] = simulateOne(t(mParam[i,c(1,2,3,4)]), mParam[i,5], 3, model.matrix(CD63_Act ~ f13_Peanut + Peanut_Shannon + Avidity, data=dfData)) 
 }
@@ -791,7 +790,9 @@ apply(mDraws.2, 1, function(x) lines(density(x), lwd=0.5, col='red'))
 #### plot covariates vs actual data and fitted values
 plot(dfData$f13_Peanut, dfData$CD63_Act, pch=20,
      xlab='log f13_Peanut', ylab='%CD63 Act',
-     main='Relationship of Predictor to Response')
+     main='Relationship of Predictor to Response', col=c(1,2)[as.numeric(dfData$Allergic.Status)])
+legend('topleft', legend = as.character(levels(dfData$Allergic.Status)),
+      fill=c(1,2))
 lines(lowess(dfData$f13_Peanut, colMeans(mMuSim)))
 points(dfData$f13_Peanut, colMeans(mMuSim), col=2, pch=20)
 lines(lowess(dfData$f13_Peanut, dfData$CD63_Act))
@@ -812,7 +813,9 @@ shade(mu.hpdi, iGrid)
 ## for second variable
 plot(dfData$Peanut_Shannon, dfData$CD63_Act, pch=20,
      xlab='Peanut_Shannon', ylab='%CD63 Act',
-     main='Relationship of Predictor to Response')
+     main='Relationship of Predictor to Response', col=c(1,2)[as.numeric(dfData$Allergic.Status)])
+legend('topleft', legend = as.character(levels(dfData$Allergic.Status)),
+       fill=c(1,2))
 lines(lowess(dfData$Peanut_Shannon, colMeans(mMuSim)))
 points(dfData$Peanut_Shannon, colMeans(mMuSim), col=2, pch=20)
 lines(lowess(dfData$Peanut_Shannon, dfData$CD63_Act))
@@ -832,7 +835,9 @@ shade(mu.hpdi, iGrid)
 ### repeat for third variable
 plot(dfData$Avidity, dfData$CD63_Act, pch=20,
      xlab='Avidity', ylab='%CD63 Act',
-     main='Relationship of Predictor to Response')
+     main='Relationship of Predictor to Response', col=c(1,2)[as.numeric(dfData$Allergic.Status)])
+legend('topleft', legend = as.character(levels(dfData$Allergic.Status)),
+       fill=c(1,2))
 lines(lowess(dfData$Avidity, colMeans(mMuSim)))
 points(dfData$Avidity, colMeans(mMuSim), col=2, pch=20)
 lines(lowess(dfData$Avidity, dfData$CD63_Act))
@@ -852,11 +857,13 @@ shade(mu.hpdi, iGrid)
 ########## counterfactual plots
 ## hold the values of f13_peanut at high and low values
 plot(dfData$Avidity, dfData$CD63_Act, pch=20,
-     xlab='Avidity', ylab='%CD63 Act', type='n',
-     main='Relationship of Predictor to Response')
+     xlab='Avidity', ylab='%CD63 Act', type='p',
+     main='Relationship of Predictor to Response', col=c(1,2)[as.numeric(dfData$Allergic.Status)])
+legend('topleft', legend = as.character(levels(dfData$Allergic.Status)),
+       fill=c(1,2))
 lines(lowess(dfData$Avidity, colMeans(mMuSim)))
 points(dfData$Avidity, colMeans(mMuSim), col=2, pch=20)
-lines(lowess(dfData$Avidity, dfData$CD63_Act))
+lines(lowess(dfData$Avidity, dfData$CD63_Act), lty=2)
 
 i = range(dfData$Avidity)
 iGrid = seq(i[1], i[2], length.out = 50)
@@ -868,7 +875,8 @@ mFitted = link(fit.1, data=list(f13_Peanut=rep(-3, times=50),
                                 Avidity=iGrid))
 ## posterior predictive values for fitted
 lines(iGrid, colMeans(mFitted), col='green')
-
+mu.hpdi = apply(mFitted, 2, HPDI)
+shade(mu.hpdi, iGrid)
 ## hold second variable at average
 coef(fit.1)
 summary(dfData$f13_Peanut)
@@ -877,6 +885,8 @@ mFitted = link(fit.1, data=list(f13_Peanut=rep(0, times=50),
                                 Avidity=iGrid))
 ## posterior predictive values for fitted
 lines(iGrid, colMeans(mFitted), col='red')
+mu.hpdi = apply(mFitted, 2, HPDI)
+shade(mu.hpdi, iGrid)
 
 ## hold second variable at largest
 coef(fit.1)
@@ -886,13 +896,17 @@ mFitted = link(fit.1, data=list(f13_Peanut=rep(3, times=50),
                                 Avidity=iGrid))
 ## posterior predictive values for fitted
 lines(iGrid, colMeans(mFitted), col='blue')
+mu.hpdi = apply(mFitted, 2, HPDI)
+shade(mu.hpdi, iGrid)
 
 ### repeat this for peanut shannon
 ## hold the values of f13_peanut at high and low values
 plot(dfData$Peanut_Shannon, dfData$CD63_Act, pch=20,
-     xlab='Peanut Shannon', ylab='%CD63 Act', type='n',
-     main='Relationship of Predictor to Response')
-lines(lowess(dfData$Peanut_Shannon, colMeans(mMuSim)))
+     xlab='Peanut Shannon', ylab='%CD63 Act', type='p',
+     main='Relationship of Predictor to Response', col=c(1,2)[as.numeric(dfData$Allergic.Status)])
+legend('topleft', legend = as.character(levels(dfData$Allergic.Status)),
+       fill=c(1,2))
+lines(lowess(dfData$Peanut_Shannon, dfData$CD63_Act))
 
 i = range(dfData$Peanut_Shannon)
 iGrid = seq(i[1], i[2], length.out = 50)
@@ -904,6 +918,8 @@ mFitted = link(fit.1, data=list(f13_Peanut=rep(-3, times=50),
                                 Avidity=rep(0, times=50)))
 ## posterior predictive values for fitted
 lines(iGrid, colMeans(mFitted), col='green')
+mu.hpdi = apply(mFitted, 2, HPDI)
+shade(mu.hpdi, iGrid)
 
 ## hold second variable at average
 coef(fit.1)
@@ -913,6 +929,8 @@ mFitted = link(fit.1, data=list(f13_Peanut=rep(0, times=50),
                                 Avidity=rep(0, times=50)))
 ## posterior predictive values for fitted
 lines(iGrid, colMeans(mFitted), col='red')
+mu.hpdi = apply(mFitted, 2, HPDI)
+shade(mu.hpdi, iGrid)
 
 ## hold second variable at largest
 coef(fit.1)
@@ -922,6 +940,8 @@ mFitted = link(fit.1, data=list(f13_Peanut=rep(3, times=50),
                                 Avidity=rep(0, times=50)))
 ## posterior predictive values for fitted
 lines(iGrid, colMeans(mFitted), col='blue')
+mu.hpdi = apply(mFitted, 2, HPDI)
+shade(mu.hpdi, iGrid)
 
 ######################################################################################
 
@@ -1016,7 +1036,7 @@ dim(mMuSim)
 mParam = extract.samples(fit.1, n=200)
 dim(mParam)
 
-mDraws.2 = matrix(NA, nrow = 200, ncol = 36)
+mDraws.2 = matrix(NA, nrow = 200, ncol = 60)
 for (i in 1:200){
   mDraws.2[i,] = simulateOne(t(mParam[i,c(1,2,3,4)]), mParam[i,5], 3, model.matrix(CD63_Act ~ Peanut_Sp_Act + ISAC_Shannon + Avidity, data=dfData)) 
 }
@@ -1038,7 +1058,9 @@ apply(mDraws.2, 1, function(x) lines(density(x), lwd=0.5, col='red'))
 #### plot covariates vs actual data and fitted values
 plot(dfData$Peanut_Sp_Act, dfData$CD63_Act, pch=20,
      xlab='Peanut_Sp_Act', ylab='%CD63 Act',
-     main='Relationship of Predictor to Response')
+     main='Relationship of Predictor to Response', col=c(1,2)[as.numeric(dfData$Allergic.Status)])
+legend('topleft', legend = as.character(levels(dfData$Allergic.Status)),
+       fill=c(1,2))
 lines(lowess(dfData$Peanut_Sp_Act, colMeans(mMuSim)))
 points(dfData$Peanut_Sp_Act, colMeans(mMuSim), col=2, pch=20)
 lines(lowess(dfData$Peanut_Sp_Act, dfData$CD63_Act))
@@ -1059,7 +1081,9 @@ shade(mu.hpdi, iGrid)
 ## for second variable
 plot(dfData$ISAC_Shannon, dfData$CD63_Act, pch=20,
      xlab='ISAC_Shannon', ylab='%CD63 Act',
-     main='Relationship of Predictor to Response')
+     main='Relationship of Predictor to Response', col=c(1,2)[as.numeric(dfData$Allergic.Status)])
+legend('topleft', legend = as.character(levels(dfData$Allergic.Status)),
+       fill=c(1,2))
 lines(lowess(dfData$ISAC_Shannon, colMeans(mMuSim)))
 points(dfData$ISAC_Shannon, colMeans(mMuSim), col=2, pch=20)
 lines(lowess(dfData$ISAC_Shannon, dfData$CD63_Act))
@@ -1079,7 +1103,9 @@ shade(mu.hpdi, iGrid)
 ### repeat for third variable
 plot(dfData$Avidity, dfData$CD63_Act, pch=20,
      xlab='Avidity', ylab='%CD63 Act',
-     main='Relationship of Predictor to Response')
+     main='Relationship of Predictor to Response', col=c(1,2)[as.numeric(dfData$Allergic.Status)])
+legend('topleft', legend = as.character(levels(dfData$Allergic.Status)),
+       fill=c(1,2))
 lines(lowess(dfData$Avidity, colMeans(mMuSim)))
 points(dfData$Avidity, colMeans(mMuSim), col=2, pch=20)
 lines(lowess(dfData$Avidity, dfData$CD63_Act))
