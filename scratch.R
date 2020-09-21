@@ -2,26 +2,32 @@
 # some random bits of rough work
 
 ### generate shannon diversity
-df2 = read.csv('dataExternal/Mechanistic Data for Umar May 2019 OH .csv', header=T, stringsAsFactors = F)
-df$Patient = as.character(df$Patient)
-identical(df2$Patient.ID, df$Patient)
-
-colnames(df)
-m = as.matrix(df[,-c(1,2)])
+source('header.R')
+df = read.csv(file.choose(), header=T, stringsAsFactors = F, row.names = 1)
+df2 = df[-1,]
+m = as.matrix(df2)
+dim(m)
 colnames(m)
+rownames(m)
+m = apply(m, 2, as.numeric)
 dim(m)
 
-s = apply(m, 1, shannon)
+s = apply(m, 2, shannon)
 s
 hist(s)
-
-df2$Whole.ISAC.Diversity..Shannons. = s
-colnames(m)
-i = grep('Ara', colnames(m))
-colnames(m)[i]
-s = apply(m[,i], 1, shannon)
+dfResult = data.frame(Whole.ISAC.Shannon.Diversity=s)
+rownames(df2)
+i = grep('Ara', rownames(df2), ignore.case = T)
+rownames(df2)[i]
+s = apply(m[i,], 2, shannon)
 s
 hist(s)
 hist(log(s+1e-5))
-df2$Peanut.ISAC.Diversity..Shannon. = s
-write.csv(df2, file='dataExternal/Mechanistic Data for Umar May 2019 OH with diversity.csv')
+dfResult$Peanut.ISAC.Shannon.Diversity = s
+identical(rownames(dfResult), colnames(df))
+dfResult$Allergic.Status = as.character(df[1,])
+
+boxplot(dfResult$Whole.ISAC.Shannon.Diversity ~ factor(dfResult$Allergic.Status))
+boxplot(dfResult$Peanut.ISAC.Shannon.Diversity ~ factor(dfResult$Allergic.Status))
+
+write.csv(dfResult, file='dataExternal/External Validation ISAC Data to Diversity.xls')
