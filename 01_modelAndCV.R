@@ -75,23 +75,25 @@ dim(mData)
 
 lData.test = list(data=mData, covariates=dfSample)
 rm(df)
-
+rm(mData)
 ## sanity check
 table(colnames(lData.train$data) %in% colnames(lData.test$data))
+identical(colnames(lData.train$data), colnames(lData.test$data))
 ############ end data loading
 
 ######################## Stan section for binomial regression approach
 ### fit 2 models one standard binomial and one with robust version
-dfData = data.frame(lData.train$data)
+dfData = rbind(data.frame(lData.train$data), data.frame(lData.test$data))
 dim(dfData)
-dfData$fGroups = lData.train$covariates$Allergic.Status
+dfData$fGroups = factor(c(as.character(lData.train$covariates$Allergic.Status), 
+                          as.character(lData.test$covariates$Allergic.Status)), levels = c('PS', 'PA'))
 lData = list(resp=ifelse(dfData$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
 
 library(rethinking)
 library(rstan)
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
-stanDso = rstan::stan_model(file='binomialRegressionSharedCoeffVariance.stan')
+stanDso = rstan::stan_model(file='binomialGuessMixtureRegressionSharedCoeffVariance.stan')
 
 lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData$mModMatrix,
                  y=lData$resp)
@@ -145,7 +147,7 @@ r = signif(cbind(m, s), 3)
 colnames(r) = c('Coefficient', 'SE')
 rownames(r)[1] = 'Intercept'
 
-write.csv(r, file = 'results/model_1_robust_train.csv')
+write.csv(r, file = 'results/model_1_robust_all.csv')
 
 ################# predictions and comparison with robust model
 ## binomial prediction
@@ -197,35 +199,42 @@ cvOutliers = names(i)
 m.s = fit.stan
 m.r = fit.stan
 plot(compare(m.s, m.r))
-# # remove appropriate covariate or samples
-# m = lData.train$data
-# colnames(m)
-# m = m[,-6]
-# lData.train$data = m
 
-## remove outliers
-# i = which(lData.train$covariates$Patient %in% cvOutliers)
-# lData.train$data = lData.train$data[-i,]
-# lData.train$covariates = lData.train$covariates[-i,]
-## plots of coeftab, from various models
-## to show that the guessing parameter controls for outliers
-ct = coeftab(m.s, m.r)
-rn = rownames(ct@coefs)
-i = grep('betas', rn)
-i = i[-c(1, length(i))]
-rownames(ct@coefs)[i] = colnames(mData)
-rownames(ct@se)[i] = colnames(mData)
-plot(ct, pars=colnames(mData))
-
+rm(dfData)
+rm(stanDso)
 #################
+####################### cross validation under LDA and binomial models
+if(!require(downloader) || !require(methods)) stop('Library downloader and methods required')
 
-dim(dfData)
+url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/CCrossValidation.R'
+download(url, 'CCrossValidation.R')
+
+# load the required packages
+source('CCrossValidation.R')
+# delete the file after source
+unlink('CCrossValidation.R')
+
+## setup input data
+dfData.train = data.frame(lData.train$data)
+fGroups.train = lData.train$covariates$Allergic.Status
+
+dfData.test = data.frame(lData.test$data)
+fGroups.test = lData.test$covariates$Allergic.Status
+
+dim(dfData.train)
+dim(dfData.test)
+
 # create the cross validation object
 url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/bernoulli.stan'
 download(url, 'bernoulli.stan')
 
-oCV.s = CCrossValidation.StanBern(dfData[,-113], dfData[, -113], fGroups, fGroups, level.predict = 'PA',
-                                  boot.num = 10, k.fold = 10, ncores = 2, nchains = 2) 
+oCV.s = CCrossValidation.StanBern(train.dat = dfData.train, 
+                                  test.dat = dfData.test, 
+                                  test.groups = fGroups.test, 
+                                  train.groups = fGroups.train,
+                                  level.predict = 'PA',
+                                  boot.num = 10, k.fold = 10, 
+                                  ncores = 2, nchains = 2) 
 
 save(oCV.s, file='temp/oCV.s.rds')
 
@@ -235,7 +244,6 @@ unlink('bernoulli.stan')
 ################ fit a binomial model on the chosen model size based on previous results
 ## this can be another classifier as well e.g. LDA. Using this model check how is the performance 
 ## and using this make some calibration curves to select decision boundary
-
 
 library(LearnBayes)
 ## binomial prediction
@@ -250,51 +258,65 @@ mypred = function(theta, data){
   return(iFitted)
 }
 
+dfData.train$fGroups = fGroups.train
+dfData.test$fGroups = fGroups.test
 
-lData = list(resp=ifelse(dfData$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
-# ## get the coefficient of interest - Modules in our case from the random coefficients section
+lData = list(resp=ifelse(dfData.train$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData.train))
+
+## fit the model on full training data
+stanDso = rstan::stan_model(file='binomialRegressionSharedCoeffVariance.stan')
+
+lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData$mModMatrix,
+                 y=lData$resp)
+
+fit.stan = sampling(stanDso, data=lStanData, iter=2000, chains=4, pars=c('tau', 'betas2', 'log_lik'), cores=4,# init=initf,
+                    control=list(adapt_delta=0.99, max_treedepth = 13))
+
 mCoef = extract(fit.stan)$betas2
 dim(mCoef)
 colnames(mCoef) = c('Intercept', colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)])
 # pairs(mCoef, pch=20)
-
 
 ### once we have results from the classifier we can make some plots to see
 ### the performance
 library(lattice)
 library(car)
 ## get the predicted values
-dfData.new = dfData
+## choose appropriate dataset test or train
+#dfData.new = dfData.train
+dfData.new = dfData.test
 ## create model matrix
 X = as.matrix(cbind(rep(1, times=nrow(dfData.new)), dfData.new[,colnames(mCoef)[-1]]))
 colnames(X) = colnames(mCoef)
 head(X)
 ivPredict.raw = mypred(colMeans(mCoef), list(mModMatrix=X))[,1]
 ivPredict = plogis(ivPredict.raw)
-xyplot(ivPredict ~ fGroups, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)')
-xyplot(ivPredict ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)',
-       main='Predicted scores vs Actual groups')
-densityplot(~ ivPredict, data=dfData, type='n')
-densityplot(~ ivPredict | fGroups, data=dfData, type='n', xlab='Predicted Score', main='Actual Scale')
-densityplot(~ ivPredict, groups=fGroups, data=dfData, type='n', 
+xyplot(ivPredict ~ dfData.new$fGroups, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)')
+
+densityplot(~ ivPredict, type='n')
+densityplot(~ ivPredict | fGroups, data=dfData.new, type='n', xlab='Predicted Score', main='Actual Scale')
+densityplot(~ ivPredict, groups=fGroups, data=dfData.new, type='n', 
+            xlab='Predicted Score', main='Actual Scale', auto.key = list(columns=2))
+
+densityplot(~ ivPredict.raw, groups=fGroups, data=dfData.new, type='n', 
             xlab='Predicted Score', main='Actual Scale', auto.key = list(columns=2))
 
 ## identify possible outliers/misclassified observations
-df = data.frame(fGroups, ivPredict)
+df = data.frame(fGroups=dfData.new$fGroups, ivPredict)
 i = which(df$fGroups == 'PS' & df$ivPredict > 0.4)
 rownames(df)[i]
 i = which(df$fGroups == 'PA' & df$ivPredict < 0.5)
 rownames(df)[i]
 ## lets check on a different scale of the score
-densityplot(~ ivPredict.raw, data=dfData)
-xyplot(ivPredict.raw ~ lData.train$covariates$Allergic.Status, xlab='Actual Group', ylab='Predicted Probability of Being PS (1)')
-densityplot(~ ivPredict.raw, groups=fGroups, data=dfData, type='n', 
+densityplot(~ ivPredict.raw)
+xyplot(ivPredict.raw ~ dfData.new$fGroups, xlab='Actual Group', ylab='Predicted Probability of Being PS (1)')
+densityplot(~ ivPredict.raw, groups=fGroups, data=dfData.new, type='n', 
             xlab='Predicted Score', main='Logit Scale', auto.key = list(columns=2))
 
 
 ############# ROC curve 
 ## draw a ROC curve first for calibration performance test
-ivTruth = fGroups == 'PA'
+ivTruth = dfData.new$fGroups == 'PA'
 p = prediction(ivPredict, ivTruth)
 perf.alive = performance(p, 'tpr', 'fpr')
 dfPerf.alive = data.frame(c=perf.alive@alpha.values, t=perf.alive@y.values[[1]], f=perf.alive@x.values[[1]], 
