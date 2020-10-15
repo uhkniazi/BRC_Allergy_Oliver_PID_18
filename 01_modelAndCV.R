@@ -93,7 +93,7 @@ library(rethinking)
 library(rstan)
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
-stanDso = rstan::stan_model(file='binomialGuessMixtureRegressionSharedCoeffVariance.stan')
+stanDso = rstan::stan_model(file='binomialRegressionSharedCoeffVariance.stan')
 
 lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData$mModMatrix,
                  y=lData$resp)
@@ -147,7 +147,7 @@ r = signif(cbind(m, s), 3)
 colnames(r) = c('Coefficient', 'SE')
 rownames(r)[1] = 'Intercept'
 
-write.csv(r, file = 'results/model_1_robust_all.csv')
+write.csv(r, file = 'results/model_1_fit1_binary.csv')
 
 ################# predictions and comparison with robust model
 ## binomial prediction
@@ -173,7 +173,7 @@ colnames(X) = colnames(mCoef)
 head(X)
 ivPredict = plogis(mypred(colMeans(mCoef), list(mModMatrix=X))[,1])
 xyplot(ivPredict ~ fGroups, xlab='Actual Group', 
-       ylab='Predicted Probability of Being PA (1) - Train',
+       ylab='Predicted Probability of Being PA (1) - All',
        data=dfData)
 # outlier samples
 i = which(ivPredict < 0.5 & dfData$fGroups == 'PA')
@@ -283,7 +283,7 @@ library(lattice)
 library(car)
 ## get the predicted values
 ## choose appropriate dataset test or train
-#dfData.new = dfData.train
+dfData.new = dfData.train
 dfData.new = dfData.test
 ## create model matrix
 X = as.matrix(cbind(rep(1, times=nrow(dfData.new)), dfData.new[,colnames(mCoef)[-1]]))
@@ -462,4 +462,4 @@ hist(y, main='True Positive Rate at 0.57', xlab='')
 
 fPredict = rep('PS', times=length(ivPredict))
 fPredict[ivPredict >= 0.57] = 'PA'
-table(fPredict, fGroups)
+table(fPredict, dfData.new$fGroups)
