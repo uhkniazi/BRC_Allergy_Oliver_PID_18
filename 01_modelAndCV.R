@@ -113,6 +113,15 @@ print(fit.stan, c('betas2', 'tau'))
 print(fit.stan, 'tau')
 traceplot(fit.stan, 'tau')
 
+#### compare the 2 models
+m.s = fit.stan
+m.r = fit.stan
+plot(compare(m.s, m.r))
+compare(m.s, m.r)
+
+# choose the appropriate model to work with
+fit.stan = m.s
+
 ## get the coefficient of interest - Modules in our case from the random coefficients section
 mCoef = extract(fit.stan)$betas2
 dim(mCoef)
@@ -147,7 +156,7 @@ r = signif(cbind(m, s), 3)
 colnames(r) = c('Coefficient', 'SE')
 rownames(r)[1] = 'Intercept'
 
-write.csv(r, file = 'results/model_1_fit1_binary.csv')
+write.csv(r, file = 'results/model_1_n60.csv')
 
 ################# predictions and comparison with robust model
 ## binomial prediction
@@ -178,30 +187,39 @@ xyplot(ivPredict ~ fGroups, xlab='Actual Group',
 # outlier samples
 i = which(ivPredict < 0.5 & dfData$fGroups == 'PA')
 cvOutliers = names(i)
+cvOutliers
 
-## repeat on test data
-## create model matrix
-dfData = data.frame(lData.test$data)
-dim(dfData)
-dfData$fGroups = lData.test$covariates$Allergic.Status 
-X = as.matrix(cbind(rep(1, times=nrow(dfData)), dfData[,colnames(mCoef)[-1]]))
-colnames(X) = colnames(mCoef)
-head(X)
-ivPredict = plogis(mypred(colMeans(mCoef), list(mModMatrix=X))[,1])
-xyplot(ivPredict ~ fGroups, xlab='Actual Group', 
-       ylab='Predicted Probability of Being PA (1) - Test',
-       data=dfData)
-# outlier samples
-i = which(ivPredict < 0.5 & dfData$fGroups == 'PA')
-cvOutliers = names(i)
-
-#### compare the 2 models
-m.s = fit.stan
-m.r = fit.stan
-plot(compare(m.s, m.r))
+# ## repeat on test data
+# ## create model matrix
+# dfData = data.frame(lData.test$data)
+# dim(dfData)
+# dfData$fGroups = lData.test$covariates$Allergic.Status 
+# X = as.matrix(cbind(rep(1, times=nrow(dfData)), dfData[,colnames(mCoef)[-1]]))
+# colnames(X) = colnames(mCoef)
+# head(X)
+# ivPredict = plogis(mypred(colMeans(mCoef), list(mModMatrix=X))[,1])
+# xyplot(ivPredict ~ fGroups, xlab='Actual Group', 
+#        ylab='Predicted Probability of Being PA (1) - Test',
+#        data=dfData)
+# # outlier samples
+# i = which(ivPredict < 0.5 & dfData$fGroups == 'PA')
+# cvOutliers = names(i)
+# 
+# #### compare the 2 models
+# m.s = fit.stan
+# m.r = fit.stan
+# plot(compare(m.s, m.r))
 
 rm(dfData)
 rm(stanDso)
+
+#### repeat the analysis on the new dataset only separately
+dfData = data.frame(lData.test$data)
+dim(dfData)
+dfData$fGroups = lData.test$covariates$Allergic.Status
+lData = list(resp=ifelse(dfData$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
+## scroll up to the model section to create figures and output file
+
 #################
 ####################### cross validation under LDA and binomial models
 if(!require(downloader) || !require(methods)) stop('Library downloader and methods required')
@@ -240,226 +258,3 @@ save(oCV.s, file='temp/oCV.s.rds')
 
 plot.cv.performance(oCV.s)
 unlink('bernoulli.stan')
-################################################# binomial regression with mixture model section
-################ fit a binomial model on the chosen model size based on previous results
-## this can be another classifier as well e.g. LDA. Using this model check how is the performance 
-## and using this make some calibration curves to select decision boundary
-
-library(LearnBayes)
-## binomial prediction
-mypred = function(theta, data){
-  betas = theta # vector of betas i.e. regression coefficients for population
-  ## data
-  mModMatrix = data$mModMatrix
-  # calculate fitted value
-  iFitted = mModMatrix %*% betas
-  # using logit link so use inverse logit
-  #iFitted = plogis(iFitted)
-  return(iFitted)
-}
-
-dfData.train$fGroups = fGroups.train
-dfData.test$fGroups = fGroups.test
-
-lData = list(resp=ifelse(dfData.train$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData.train))
-
-## fit the model on full training data
-stanDso = rstan::stan_model(file='binomialRegressionSharedCoeffVariance.stan')
-
-lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData$mModMatrix,
-                 y=lData$resp)
-
-fit.stan = sampling(stanDso, data=lStanData, iter=2000, chains=4, pars=c('tau', 'betas2', 'log_lik'), cores=4,# init=initf,
-                    control=list(adapt_delta=0.99, max_treedepth = 13))
-
-mCoef = extract(fit.stan)$betas2
-dim(mCoef)
-colnames(mCoef) = c('Intercept', colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)])
-# pairs(mCoef, pch=20)
-
-### once we have results from the classifier we can make some plots to see
-### the performance
-library(lattice)
-library(car)
-## get the predicted values
-## choose appropriate dataset test or train
-dfData.new = dfData.train
-dfData.new = dfData.test
-## create model matrix
-X = as.matrix(cbind(rep(1, times=nrow(dfData.new)), dfData.new[,colnames(mCoef)[-1]]))
-colnames(X) = colnames(mCoef)
-head(X)
-ivPredict.raw = mypred(colMeans(mCoef), list(mModMatrix=X))[,1]
-ivPredict = plogis(ivPredict.raw)
-xyplot(ivPredict ~ dfData.new$fGroups, xlab='Actual Group', ylab='Predicted Probability of Being PA (1)')
-
-densityplot(~ ivPredict, type='n')
-densityplot(~ ivPredict | fGroups, data=dfData.new, type='n', xlab='Predicted Score', main='Actual Scale')
-densityplot(~ ivPredict, groups=fGroups, data=dfData.new, type='n', 
-            xlab='Predicted Score', main='Actual Scale', auto.key = list(columns=2))
-
-densityplot(~ ivPredict.raw, groups=fGroups, data=dfData.new, type='n', 
-            xlab='Predicted Score', main='Actual Scale', auto.key = list(columns=2))
-
-## identify possible outliers/misclassified observations
-df = data.frame(fGroups=dfData.new$fGroups, ivPredict)
-i = which(df$fGroups == 'PS' & df$ivPredict > 0.4)
-rownames(df)[i]
-i = which(df$fGroups == 'PA' & df$ivPredict < 0.5)
-rownames(df)[i]
-## lets check on a different scale of the score
-densityplot(~ ivPredict.raw)
-xyplot(ivPredict.raw ~ dfData.new$fGroups, xlab='Actual Group', ylab='Predicted Probability of Being PS (1)')
-densityplot(~ ivPredict.raw, groups=fGroups, data=dfData.new, type='n', 
-            xlab='Predicted Score', main='Logit Scale', auto.key = list(columns=2))
-
-
-############# ROC curve 
-## draw a ROC curve first for calibration performance test
-ivTruth = dfData.new$fGroups == 'PA'
-p = prediction(ivPredict, ivTruth)
-perf.alive = performance(p, 'tpr', 'fpr')
-dfPerf.alive = data.frame(c=perf.alive@alpha.values, t=perf.alive@y.values[[1]], f=perf.alive@x.values[[1]], 
-                          r=perf.alive@y.values[[1]]/perf.alive@x.values[[1]])
-colnames(dfPerf.alive) = c('c', 't', 'f', 'r')
-plot(perf.alive, main='Classifier Performance to predict PA')
-a = performance(p, 'auc')
-legend('bottomright', paste0('auc ', as.numeric(a@y.values)))
-
-# convert to logit scale for model fitting
-ivPredict = ivPredict.raw
-################################ section for mixture model
-######## this mixture model will help us decide an appropriate cutoff for the decision rule
-######## see Gelman 2013 around P18 for an example of record linking score calibration
-fit.stan.bin = fit.stan
-
-stanDso = rstan::stan_model(file='normResponseFiniteMixture_2.stan')
-
-## take a subset of the data
-lStanData = list(Ntotal=length(ivPredict), y=ivPredict, iMixtures=2)
-
-## give initial values if you want, look at the density plot 
-initf = function(chain_id = 1) {
-  list(mu = c(-5, 5), sigma = c(1, 1), iMixWeights=c(0.5, 0.5))
-} 
-
-## give initial values function to stan
-# l = lapply(1, initf)
-fit.stan = sampling(stanDso, data=lStanData, iter=1000, chains=4, cores=4, init=initf)
-print(fit.stan, digi=3)
-traceplot(fit.stan)
-save(fit.stan, file='temp/fit.stan.mixture.rds')
-## check if labelling degeneracy has occured
-## see here: http://mc-stan.org/users/documentation/case-studies/identifying_mixture_models.html
-params1 = as.data.frame(extract(fit.stan, permuted=FALSE)[,1,])
-params2 = as.data.frame(extract(fit.stan, permuted=FALSE)[,2,])
-params3 = as.data.frame(extract(fit.stan, permuted=FALSE)[,3,])
-params4 = as.data.frame(extract(fit.stan, permuted=FALSE)[,4,])
-
-## check if the means from different chains overlap
-## Labeling Degeneracy by Enforcing an Ordering
-par(mfrow=c(2,2))
-plot(params1$`mu[1]`, params1$`mu[2]`, pch=20, col=2)
-plot(params2$`mu[1]`, params2$`mu[2]`, pch=20, col=3)
-plot(params3$`mu[1]`, params3$`mu[2]`, pch=20, col=4)
-plot(params4$`mu[1]`, params4$`mu[2]`, pch=20, col=5)
-
-par(mfrow=c(1,1))
-plot(params1$`mu[1]`, params1$`mu[2]`, pch=20, col=2)
-points(params2$`mu[1]`, params2$`mu[2]`, pch=20, col=3)
-points(params3$`mu[1]`, params3$`mu[2]`, pch=20, col=4)
-points(params4$`mu[1]`, params4$`mu[2]`, pch=20, col=5)
-
-
-# model checks
-############# extract the mcmc sample values from stan
-mStan = do.call(cbind, extract(fit.stan))
-mStan = mStan[,-(ncol(mStan))]
-colnames(mStan) = c('mu1', 'mu2', 'sigma1', 'sigma2', 'mix1', 'mix2')
-dim(mStan)
-## get a sample for this distribution
-########## simulate 200 test quantities
-mDraws = matrix(NA, nrow = length(ivPredict), ncol=200)
-
-for (i in 1:200){
-  p = sample(1:nrow(mStan), size = 1)
-  mix = mean(mStan[,'mix1'])
-  ## this will take a sample from a normal mixture distribution
-  sam = function() {
-    ind = rbinom(1, 1, prob = mix)
-    return(ind * rnorm(1, mStan[p, 'mu1'], mStan[p, 'sigma1']) + 
-             (1-ind) * rnorm(1, mStan[p, 'mu2'], mStan[p, 'sigma2']))
-  }
-  mDraws[,i] = replicate(length(ivPredict), sam())
-}
-
-mDraws.normMix = mDraws
-
-yresp = density(ivPredict)
-yresp$y = yresp$y/max(yresp$y)
-plot(yresp, xlab='', main='Fitted distribution', ylab='scaled density', lwd=2)
-temp = apply(mDraws, 2, function(x) {x = density(x)
-x$y = x$y/max(x$y)
-lines(x, col='darkgrey', lwd=0.6)
-})
-lines(yresp, lwd=2)
-
-
-print(fit.stan)
-
-range(ivPredict)
-## reconvert back to inverse logit scale i.e. 0 to 1 range
-ivPredict = plogis(ivPredict.raw)
-
-## draw a ROC curve first for calibration performance test
-ivTruth = fGroups == 'PA'
-p = prediction(ivPredict, ivTruth)
-perf.alive = performance(p, 'tpr', 'fpr')
-dfPerf.alive = data.frame(c=perf.alive@alpha.values, t=perf.alive@y.values[[1]], f=perf.alive@x.values[[1]], 
-                          r=perf.alive@y.values[[1]]/perf.alive@x.values[[1]])
-colnames(dfPerf.alive) = c('c', 't', 'f', 'r')
-plot(perf.alive, main='Classifier Performance to predict PA')
-
-## draw the simulation lines
-## these are p-values from the mixture components
-## create posterior smatter lines
-grid = seq(-7, 7, length.out = 100)
-f_getSmatterLines = function(m, s, g){
-  return(pnorm(g, m, s, lower.tail = F))
-}
-y = f_getSmatterLines(4.66, 3, grid)
-x = f_getSmatterLines(-4.01, 1.98, grid)
-lines(x, y, col=2, lwd=2)
-
-## holders for the simulated p-values
-mTP = matrix(NA, nrow = length(grid), ncol = 2000)
-mFP = matrix(NA, nrow = length(grid), ncol = 2000)
-
-for (i in 1:2000){
-  p = i #sample(1:nrow(mStan), size = 1)
-  x = pnorm(grid, mStan[p, 'mu1'], mStan[p, 'sigma1'], lower.tail = F) 
-  y = pnorm(grid, mStan[p, 'mu2'], mStan[p, 'sigma2'], lower.tail=F)
-  lines(x, y, col='darkgrey', lwd=0.5)
-  mFP[,i] = x
-  mTP[,i] = y
-}
-
-plot(perf.alive, add=T, col='blue', lwd=2)
-
-c = cbind(tp=rowMeans(mTP), fp=rowMeans(mFP))
-matplot(c, type = 'l', xaxt='n', xlab='Decision Boundary', ylab='Average Rate',
-        main='Simulated True Positive & False Positive Rates')
-legend('topright', c('TP', 'FP'), fill=c('black', 'red'))
-axis(1, 1:nrow(c), labels = round(plogis(grid), 3), cex.axis=0.6, las=2)
-
-## calculate average scores via simulation at desired cutoff
-p = sample(1:nrow(mStan), size = 2000)
-x = pnorm(logit(0.57), mStan[p, 'mu1'], mStan[p, 'sigma1'], lower.tail = F)
-y = pnorm(logit(0.57), mStan[p, 'mu2'], mStan[p, 'sigma2'], lower.tail=F)
-
-hist(x, main='False Positive Rate at 0.57', xlab='')
-hist(y, main='True Positive Rate at 0.57', xlab='')
-
-fPredict = rep('PS', times=length(ivPredict))
-fPredict[ivPredict >= 0.57] = 'PA'
-table(fPredict, dfData.new$fGroups)
