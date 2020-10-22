@@ -20,6 +20,8 @@ df = na.omit(df)
 dim(df)
 ## remove white space
 colnames(df)
+## subset of inputs to use
+cvSubset = c('Ara.h.1', 'Ara.h.2', 'Ara.h.3', 'Ara.h.6')
 df$Sample = factor(gsub(' ', '', as.character(df$Sample)))
 df$Allergic.Status = factor(gsub(' ', '', as.character(df$Allergic.Status)), levels = c('PS', 'PA'))
 df = droplevels.data.frame(df)
@@ -30,6 +32,7 @@ dfSample = df[,1:2]
 rownames(mData) = as.character(dfSample$Sample)
 str(dfSample)
 
+mData = mData[,cvSubset]
 ## remove NAs and 0s and convert other values to 1 by adding a jitter
 # f = mData < 0.3
 # table(f)
@@ -157,7 +160,7 @@ r = signif(cbind(m, s), 3)
 colnames(r) = c('Coefficient', 'SE')
 rownames(r)[1] = 'Intercept'
 
-write.csv(r, file = 'results/model_5_n60.csv')
+write.csv(r, file = 'results/model_5_subset_n100.csv')
 
 ################# predictions and comparison with robust model
 ## binomial prediction
@@ -255,7 +258,7 @@ oCV.s = CCrossValidation.StanBern(train.dat = dfData.train,
                                   boot.num = 10, k.fold = 10, 
                                   ncores = 2, nchains = 2) 
 
-save(oCV.s, file='temp/oCV.s_m5.rds')
+save(oCV.s, file='temp/oCV.s_m5_subset.rds')
 
 plot.cv.performance(oCV.s)
 unlink('bernoulli.stan')
