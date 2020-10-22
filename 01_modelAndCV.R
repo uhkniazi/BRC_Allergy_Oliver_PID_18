@@ -20,77 +20,30 @@ df = na.omit(df)
 dim(df)
 ## remove white space
 colnames(df)
-## subset of inputs to use
-cvSubset = c('Ara.h.1', 'Ara.h.2', 'Ara.h.3', 'Ara.h.6')
-df$Sample = factor(gsub(' ', '', as.character(df$Sample)))
+
+df$Patient.ID = factor(gsub(' ', '', as.character(df$Patient.ID)))
 df$Allergic.Status = factor(gsub(' ', '', as.character(df$Allergic.Status)), levels = c('PS', 'PA'))
 df = droplevels.data.frame(df)
 
 ## make count matrix
 mData = as.matrix(df[,-c(1:2)])
 dfSample = df[,1:2]
-rownames(mData) = as.character(dfSample$Sample)
+rownames(mData) = as.character(dfSample$Patient.ID)
 str(dfSample)
 
-mData = mData[,cvSubset]
-## remove NAs and 0s and convert other values to 1 by adding a jitter
-# f = mData < 0.3
-# table(f)
-# mData[f] = 0
-# mData[!f] = 1
 dim(na.omit(mData))
 dim(mData)
 
 lData.train = list(data=mData, covariates=dfSample)
 rm(df)
 
-#### load the test/validation data
-df = read.csv(file.choose(), header=T)
-dim(df)
-
-# remove NA patients
-f = is.na(df$Allergic.Status)
-table(f)
-df = df[!f,]
-dim(df)
-# remove any additi
-df = na.omit(df)
-dim(df)
-## remove white space
-colnames(df)
-df$Sample = factor(gsub(' ', '', as.character(df$Sample)))
-df$Allergic.Status = factor(gsub(' ', '', as.character(df$Allergic.Status)), levels = c('PS', 'PA'))
-df = droplevels.data.frame(df)
-
-## make count matrix
-mData = as.matrix(df[,-c(1:2)])
-dfSample = df[,1:2]
-rownames(mData) = as.character(dfSample$Sample)
-str(dfSample)
-
-mData = mData[,colnames(lData.train$data)]
-## remove NAs and 0s and convert other values to 1 by adding a jitter
-# f = mData < 0.3
-# table(f)
-# mData[f] = 0
-# mData[!f] = 1
-dim(na.omit(mData))
-dim(mData)
-
-lData.test = list(data=mData, covariates=dfSample)
-rm(df)
-rm(mData)
-## sanity check
-table(colnames(lData.train$data) %in% colnames(lData.test$data))
-identical(colnames(lData.train$data), colnames(lData.test$data))
 ############ end data loading
 
 ######################## Stan section for binomial regression approach
 ### fit 2 models one standard binomial and one with robust version
-dfData = rbind(data.frame(lData.train$data), data.frame(lData.test$data))
+dfData = data.frame(lData.train$data)
 dim(dfData)
-dfData$fGroups = factor(c(as.character(lData.train$covariates$Allergic.Status), 
-                          as.character(lData.test$covariates$Allergic.Status)), levels = c('PS', 'PA'))
+dfData$fGroups = lData.train$covariates$Allergic.Status
 lData = list(resp=ifelse(dfData$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
 
 library(rethinking)
@@ -160,7 +113,7 @@ r = signif(cbind(m, s), 3)
 colnames(r) = c('Coefficient', 'SE')
 rownames(r)[1] = 'Intercept'
 
-write.csv(r, file = 'results/model_5_subset_n100.csv')
+write.csv(r, file = 'results/model_singlePlex.csv')
 
 ################# predictions and comparison with robust model
 ## binomial prediction
@@ -217,13 +170,6 @@ cvOutliers
 rm(dfData)
 rm(stanDso)
 
-#### repeat the analysis on the new dataset only separately
-dfData = data.frame(lData.test$data)
-dim(dfData)
-dfData$fGroups = lData.test$covariates$Allergic.Status
-lData = list(resp=ifelse(dfData$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
-## scroll up to the model section to create figures and output file
-
 #################
 ####################### cross validation under LDA and binomial models
 if(!require(downloader) || !require(methods)) stop('Library downloader and methods required')
@@ -240,25 +186,21 @@ unlink('CCrossValidation.R')
 dfData.train = data.frame(lData.train$data)
 fGroups.train = lData.train$covariates$Allergic.Status
 
-dfData.test = data.frame(lData.test$data)
-fGroups.test = lData.test$covariates$Allergic.Status
-
 dim(dfData.train)
-dim(dfData.test)
 
 # # create the cross validation object
 # url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/bernoulli.stan'
 # download(url, 'bernoulli.stan')
 
 oCV.s = CCrossValidation.StanBern(train.dat = dfData.train, 
-                                  test.dat = dfData.test, 
-                                  test.groups = fGroups.test, 
+                                  test.dat = dfData.train, 
+                                  test.groups = fGroups.train, 
                                   train.groups = fGroups.train,
                                   level.predict = 'PA',
                                   boot.num = 10, k.fold = 10, 
                                   ncores = 2, nchains = 2) 
 
-save(oCV.s, file='temp/oCV.s_m5_subset.rds')
+save(oCV.s, file='temp/oCV.s_singleplex.rds')
 
 plot.cv.performance(oCV.s)
-unlink('bernoulli.stan')
+unlink('bernoulli.rds')
