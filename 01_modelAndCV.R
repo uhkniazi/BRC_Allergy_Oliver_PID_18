@@ -31,10 +31,10 @@ rownames(mData) = as.character(dfSample$Sample)
 str(dfSample)
 
 ## remove NAs and 0s and convert other values to 1 by adding a jitter
-f = mData < 0.3
-table(f)
-mData[f] = 0
-mData[!f] = 1
+# f = mData < 0.3
+# table(f)
+# mData[f] = 0
+# mData[!f] = 1
 dim(na.omit(mData))
 dim(mData)
 
@@ -65,11 +65,12 @@ dfSample = df[,1:2]
 rownames(mData) = as.character(dfSample$Sample)
 str(dfSample)
 
+mData = mData[,colnames(lData.train$data)]
 ## remove NAs and 0s and convert other values to 1 by adding a jitter
-f = mData < 0.3
-table(f)
-mData[f] = 0
-mData[!f] = 1
+# f = mData < 0.3
+# table(f)
+# mData[f] = 0
+# mData[!f] = 1
 dim(na.omit(mData))
 dim(mData)
 
@@ -93,7 +94,7 @@ library(rethinking)
 library(rstan)
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
-stanDso = rstan::stan_model(file='binomialRegressionSharedCoeffVariance.stan')
+stanDso = rstan::stan_model(file='binomialGuessMixtureRegressionSharedCoeffVariance.stan')
 
 lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData$mModMatrix,
                  y=lData$resp)
@@ -120,7 +121,7 @@ plot(compare(m.s, m.r))
 compare(m.s, m.r)
 
 # choose the appropriate model to work with
-fit.stan = m.s
+fit.stan = m.r
 
 ## get the coefficient of interest - Modules in our case from the random coefficients section
 mCoef = extract(fit.stan)$betas2
@@ -156,7 +157,7 @@ r = signif(cbind(m, s), 3)
 colnames(r) = c('Coefficient', 'SE')
 rownames(r)[1] = 'Intercept'
 
-write.csv(r, file = 'results/model_1_n60.csv')
+write.csv(r, file = 'results/model_5_n60.csv')
 
 ################# predictions and comparison with robust model
 ## binomial prediction
@@ -242,9 +243,9 @@ fGroups.test = lData.test$covariates$Allergic.Status
 dim(dfData.train)
 dim(dfData.test)
 
-# create the cross validation object
-url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/bernoulli.stan'
-download(url, 'bernoulli.stan')
+# # create the cross validation object
+# url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/bernoulli.stan'
+# download(url, 'bernoulli.stan')
 
 oCV.s = CCrossValidation.StanBern(train.dat = dfData.train, 
                                   test.dat = dfData.test, 
@@ -254,7 +255,7 @@ oCV.s = CCrossValidation.StanBern(train.dat = dfData.train,
                                   boot.num = 10, k.fold = 10, 
                                   ncores = 2, nchains = 2) 
 
-save(oCV.s, file='temp/oCV.s.rds')
+save(oCV.s, file='temp/oCV.s_m5.rds')
 
 plot.cv.performance(oCV.s)
 unlink('bernoulli.stan')
