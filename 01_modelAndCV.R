@@ -21,156 +21,22 @@ dim(df)
 ## remove white space
 colnames(df)
 
-df$Patient_ID = factor(gsub(' ', '', as.character(df$Patient_ID)))
+df$Patient.ID = factor(gsub(' ', '', as.character(df$Patient.ID)))
 df$Allergic.Status = factor(gsub(' ', '', as.character(df$Allergic.Status)), levels = c('PS', 'PA'))
 df = droplevels.data.frame(df)
-
 ## make count matrix
 mData = as.matrix(df[,-c(1:2)])
 dfSample = df[,1:2]
-rownames(mData) = as.character(dfSample$Patient_ID)
+rownames(mData) = as.character(dfSample$Patient.ID)
 str(dfSample)
-
+colnames(mData) = 'Arah2'
 dim(na.omit(mData))
 dim(mData)
-
 lData.train = list(data=mData, covariates=dfSample)
 rm(df)
 
 ############ end data loading
 
-######################## Stan section for binomial regression approach
-### fit 2 models one standard binomial and one with robust version
-dfData = data.frame(lData.train$data)
-dim(dfData)
-dfData$fGroups = lData.train$covariates$Allergic.Status
-lData = list(resp=ifelse(dfData$fGroups == 'PA', 1, 0), mModMatrix=model.matrix(fGroups ~ 1 + ., data=dfData))
-
-library(rethinking)
-library(rstan)
-rstan_options(auto_write = TRUE)
-options(mc.cores = parallel::detectCores())
-stanDso = rstan::stan_model(file='binomialGuessMixtureRegressionSharedCoeffVariance.stan')
-
-lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData$mModMatrix,
-                 y=lData$resp)
-
-# ## give initial values
-# initf = function(chain_id = 1) {
-#   list(betas=rep(0, times=ncol(lStanData$X)), tau=0.5)
-# }
-
-
-fit.stan = sampling(stanDso, data=lStanData, iter=2000, chains=4, pars=c('tau', 'betas2', 'log_lik'), cores=4,# init=initf,
-                    control=list(adapt_delta=0.99, max_treedepth = 13))
-
-#save(fit.stan, file='temp/fit.stan.binom.binary.rds')
-
-print(fit.stan, c('betas2', 'tau'))
-print(fit.stan, 'tau')
-traceplot(fit.stan, 'tau')
-
-#### compare the 2 models
-m.s = fit.stan
-m.r = fit.stan
-plot(compare(m.s, m.r))
-compare(m.s, m.r)
-
-# choose the appropriate model to work with
-fit.stan = m.s
-
-## get the coefficient of interest - Modules in our case from the random coefficients section
-mCoef = extract(fit.stan)$betas2
-dim(mCoef)
-# ## get the intercept at population level
-iIntercept = mCoef[,1]
-mCoef = mCoef[,-1]
-colnames(mCoef) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
-
-## line plot of coefficients
-## format for line plots
-m = colMeans(mCoef)
-names(m) = colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)]
-m = sort(m, decreasing = T)
-mTreatment = mCoef[,names(m)]
-
-df = apply(mTreatment, 2, getms)
-x = 1:ncol(mTreatment)
-
-par(p.old)
-plot(x, df['m',], ylim=c(min(df), max(df)), pch=20, xlab='', main='Effect on Log Odds of PA',
-     ylab='Slopes', xaxt='n')
-axis(1, at = x, labels = colnames(mTreatment), las=2, cex.axis=0.7)
-for(l in 1:ncol(df)){
-  lines(x=c(x[l], x[l]), y=df[c(2,3),l], lwd=0.5)
-}
-abline(h = 0, col='grey')
-
-## export the coefficients to results file
-m = c(mean(iIntercept), colMeans(mTreatment))
-s = c(sd(iIntercept), apply(mTreatment, 2, sd))
-r = signif(cbind(m, s), 3)
-colnames(r) = c('Coefficient', 'SE')
-rownames(r)[1] = 'Intercept'
-
-write.csv(r, file = 'results/model_ige_n66.csv')
-
-################# predictions and comparison with robust model
-## binomial prediction
-mypred = function(theta, data){
-  betas = theta # vector of betas i.e. regression coefficients for population
-  ## data
-  mModMatrix = data$mModMatrix
-  # calculate fitted value
-  iFitted = mModMatrix %*% betas
-  # using logit link so use inverse logit
-  #iFitted = plogis(iFitted)
-  return(iFitted)
-}
-
-mCoef = extract(fit.stan)$betas2
-dim(mCoef)
-colnames(mCoef) = c('Intercept', colnames(lData$mModMatrix)[2:ncol(lData$mModMatrix)])
-library(lattice)
-## get the predicted values
-## create model matrix
-X = as.matrix(cbind(rep(1, times=nrow(dfData)), dfData[,colnames(mCoef)[-1]]))
-colnames(X) = colnames(mCoef)
-head(X)
-ivPredict = plogis(mypred(colMeans(mCoef), list(mModMatrix=X))[,1])
-xyplot(ivPredict ~ fGroups, xlab='Actual Group', 
-       ylab='Predicted Probability of Being PA (1) - All',
-       data=dfData)
-# outlier samples
-i = which(ivPredict < 0.5 & dfData$fGroups == 'PA')
-cvOutliers = names(i)
-cvOutliers
-
-# ## repeat on test data
-# ## create model matrix
-# dfData = data.frame(lData.test$data)
-# dim(dfData)
-# dfData$fGroups = lData.test$covariates$Allergic.Status 
-# X = as.matrix(cbind(rep(1, times=nrow(dfData)), dfData[,colnames(mCoef)[-1]]))
-# colnames(X) = colnames(mCoef)
-# head(X)
-# ivPredict = plogis(mypred(colMeans(mCoef), list(mModMatrix=X))[,1])
-# xyplot(ivPredict ~ fGroups, xlab='Actual Group', 
-#        ylab='Predicted Probability of Being PA (1) - Test',
-#        data=dfData)
-# # outlier samples
-# i = which(ivPredict < 0.5 & dfData$fGroups == 'PA')
-# cvOutliers = names(i)
-# 
-# #### compare the 2 models
-# m.s = fit.stan
-# m.r = fit.stan
-# plot(compare(m.s, m.r))
-
-rm(dfData)
-rm(stanDso)
-
-#################
 ####################### cross validation under LDA and binomial models
 if(!require(downloader) || !require(methods)) stop('Library downloader and methods required')
 
@@ -200,7 +66,6 @@ oCV.s = CCrossValidation.StanBern(train.dat = dfData.train,
                                   boot.num = 10, k.fold = 10, 
                                   ncores = 2, nchains = 2) 
 
-save(oCV.s, file='temp/oCV.s_igeN66.rds')
 
 plot.cv.performance(oCV.s)
 unlink('bernoulli.rds')
