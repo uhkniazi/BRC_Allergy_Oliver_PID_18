@@ -113,7 +113,7 @@ r = signif(cbind(m, s), 3)
 colnames(r) = c('Coefficient', 'SE')
 rownames(r)[1] = 'Intercept'
 
-write.csv(r, file = 'results/model_ige_n100.csv')
+write.csv(r, file = 'results/model_ige_n66.csv')
 
 ################# predictions and comparison with robust model
 ## binomial prediction
@@ -200,7 +200,7 @@ oCV.s = CCrossValidation.StanBern(train.dat = dfData.train,
                                   boot.num = 10, k.fold = 10, 
                                   ncores = 2, nchains = 2) 
 
-save(oCV.s, file='temp/oCV.s_igeN100.rds')
+save(oCV.s, file='temp/oCV.s_igeN66.rds')
 
 plot.cv.performance(oCV.s)
 unlink('bernoulli.rds')
