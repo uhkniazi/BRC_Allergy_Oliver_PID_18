@@ -21,14 +21,14 @@ dim(df)
 ## remove white space
 colnames(df)
 
-df$Patient.ID = factor(gsub(' ', '', as.character(df$Patient.ID)))
+df$Patient_ID = factor(gsub(' ', '', as.character(df$Patient_ID)))
 df$Allergic.Status = factor(gsub(' ', '', as.character(df$Allergic.Status)), levels = c('PS', 'PA'))
 df = droplevels.data.frame(df)
 
 ## make count matrix
 mData = as.matrix(df[,-c(1:2)])
 dfSample = df[,1:2]
-rownames(mData) = as.character(dfSample$Patient.ID)
+rownames(mData) = as.character(dfSample$Patient_ID)
 str(dfSample)
 
 dim(na.omit(mData))
@@ -77,7 +77,7 @@ plot(compare(m.s, m.r))
 compare(m.s, m.r)
 
 # choose the appropriate model to work with
-fit.stan = m.r
+fit.stan = m.s
 
 ## get the coefficient of interest - Modules in our case from the random coefficients section
 mCoef = extract(fit.stan)$betas2
@@ -113,7 +113,7 @@ r = signif(cbind(m, s), 3)
 colnames(r) = c('Coefficient', 'SE')
 rownames(r)[1] = 'Intercept'
 
-write.csv(r, file = 'results/model_singlePlex.csv')
+write.csv(r, file = 'results/model_ige_n100.csv')
 
 ################# predictions and comparison with robust model
 ## binomial prediction
@@ -188,9 +188,9 @@ fGroups.train = lData.train$covariates$Allergic.Status
 
 dim(dfData.train)
 
-# # create the cross validation object
-# url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/bernoulli.stan'
-# download(url, 'bernoulli.stan')
+# create the cross validation object
+url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/experimental/bernoulli.stan'
+download(url, 'bernoulli.stan')
 
 oCV.s = CCrossValidation.StanBern(train.dat = dfData.train, 
                                   test.dat = dfData.train, 
@@ -200,7 +200,8 @@ oCV.s = CCrossValidation.StanBern(train.dat = dfData.train,
                                   boot.num = 10, k.fold = 10, 
                                   ncores = 2, nchains = 2) 
 
-save(oCV.s, file='temp/oCV.s_singleplex.rds')
+save(oCV.s, file='temp/oCV.s_igeN100.rds')
 
 plot.cv.performance(oCV.s)
 unlink('bernoulli.rds')
+unlink('bernoulli.stan')
