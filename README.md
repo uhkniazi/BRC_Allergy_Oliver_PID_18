@@ -1,4 +1,1 @@
-# BRC_Allergy_Oliver_PID_18
-Characterisation of IgE repretoire measured using ImmunoCAP ISAC microarray
-
-## branch with only full isac data and validation data  
+**Diagnostic Model 1** utilised data collected for IgE sensitisation to each allergen (n=112) included in the ISAC microarray, across both PA (n=50) and PS (n=40) individuals. We used a Bayesian hierarchical logistic regression model where an adaptive prior using a variance hyper-parameter leads to shrinkage of regression coefficients.
