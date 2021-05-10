@@ -1,4 +1,1 @@
-# BRC_Allergy_Oliver_PID_18
-Characterisation of IgE repretoire measured using ImmunoCAP ISAC microarray
-
-## branch with only full isac data and validation data  
+**Diagnostic Model 4B** was developed using data generated on the functional characteristics of IgE: peanut-sIgE levels, peanut specific activity, IgE avidity to peanut and IgE diversity to peanut allergens. As data for IgE avidity to peanut was limited to 66 individuals (PA= 39, PS=27) for technical reasons, two models were created: model 4A, built using data from n=90 and including levels, specific activity and diversity; and model 4B, incorporating data from n=66 and including levels, specific activity, diversity and avidity. 
