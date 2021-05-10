@@ -1,4 +1,1 @@
-# BRC_Allergy_Oliver_PID_18
-Characterisation of IgE repretoire measured using ImmunoCAP ISAC microarray
-
-## branch with only full isac data and validation data  
+**Diagnostic Model 3** utilised data collected for IgE sensitisation to the 4 major peanut allergen components Ara h 1,2,3 and 6 using the singleplex ImmunoCAP platform, across both PA (n=50) and PS (n=40) individuals
